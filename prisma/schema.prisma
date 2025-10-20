@@ -12,3 +12,67 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum SignupMethod {
+  GOOGLE
+  EMAIL
+  FACEBOOK
+}
+
+enum SubscriptionPlan {
+  FREE
+  PREMIUM
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+  BANNED
+}
+
+model User {
+  id               Int              @id @default(autoincrement())
+  email            String           @unique
+  username         String           @unique
+  password         String
+  avatar           String?
+  signupMethod     SignupMethod
+  subscriptionPlan SubscriptionPlan @default(FREE)
+  status           Status           @default(ACTIVE)
+  lastLoginAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  roles UserRole[]
+
+  @@index([email])
+  @@index([username])
+  @@index([status])
+  @@map("users")
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique // "USER", "ADMIN", "MODERATOR", "EDITOR"
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId     Int
+  roleId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+  assignedBy Int?
+
+  @@id([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
