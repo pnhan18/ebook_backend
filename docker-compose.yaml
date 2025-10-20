@@ -1,0 +1,42 @@
+services:
+  app:
+    build: .
+    container_name: nestjs-app
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=${DATABASE_NAME}
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - ebook-network
+    depends_on:
+      - db
+
+  db:
+    image: postgres:17-alpine
+    container_name: nestjs-postgres
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - ebook-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  ebook-network:
+    driver: bridge
