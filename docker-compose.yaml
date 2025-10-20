@@ -6,11 +6,7 @@ services:
       - "${APP_PORT:-3000}:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-development}
-      - DATABASE_HOST=db
-      - DATABASE_PORT=5432
-      - DATABASE_NAME=${DATABASE_NAME}
-      - DATABASE_USER=${DATABASE_USER}
-      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
