@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { SignupMethod } from '@prisma/client';
+import { SignupMethod, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { ConflictException } from 'src/common';
 import type { IUsersRepository } from './interfaces/user-repository.interface';
@@ -49,5 +49,15 @@ export class UsersService {
       ...safeUser,
       roles: roles.map(r => r.role)
     }
+  }
+
+  async findByEmailWithPassword(email: string){
+    return await this.usersRepository.findByEmail(email);
+  }
+
+  async updateLastLogin(userId: number): Promise<void> {
+    await this.usersRepository.update(userId, {
+      lastLoginAt: new Date(),
+    });
   }
 }
