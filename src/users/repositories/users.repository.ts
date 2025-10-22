@@ -1,7 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { IUsersRepository, UserWithRoles } from '../interfaces/user-repository.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma} from '@prisma/client';
+import { Prisma, User} from '@prisma/client';
 
 @Injectable()
 export class UsersRepository implements IUsersRepository {
@@ -57,6 +57,20 @@ export class UsersRepository implements IUsersRepository {
   async findByUsername(username: string): Promise<UserWithRoles | null> {
     return this.prismaService.user.findUnique({
       where: { username },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  async update(id: number, data: Partial<User>): Promise<UserWithRoles> {
+    return this.prismaService.user.update({
+      where: { id },
+      data,
       include: {
         roles: {
           include: {
