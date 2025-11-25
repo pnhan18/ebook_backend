@@ -93,4 +93,17 @@ export class UsersRepository implements IUsersRepository {
       },
     });
   }
+
+  async findByResetToken(token: string): Promise<UserWithRoles | null> {
+    return this.prismaService.user.findFirst({
+      where: { resetPasswordToken: token },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+  }
 }

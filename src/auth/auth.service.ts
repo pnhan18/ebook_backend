@@ -6,13 +6,18 @@ import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
 import { BadRequestException, UnauthorizedException } from 'src/common';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
   ) {}
 
   async register(signupDto: SignupDto): Promise<AuthResponseDto> {
@@ -111,5 +116,69 @@ export class AuthService {
     await this.usersService.updatePassword(userId, hashedPassword);
 
     return { message: 'Password changed successfully' };
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
+    const { email } = forgotPasswordDto;
+
+    const user = await this.usersService.findByEmailWithPassword(email);
+    
+    // Always return success message to prevent email enumeration
+    if (!user) {
+      return { message: 'If the email exists, a password reset link has been sent' };
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    
+    // Token expires in 1 hour
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    // Save hashed token to database
+    await this.usersService.saveResetToken(user.id, hashedToken, expiresAt);
+
+    // Send password reset email
+    try {
+      await this.mailService.sendPasswordResetEmail(email, resetToken);
+    } catch (error) {
+      console.error('Failed to send password reset email:', error);
+      // Still return success to prevent email enumeration
+    }
+
+    return { message: 'If the email exists, a password reset link has been sent' };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
+    const { token, newPassword } = resetPasswordDto;
+
+    // Hash the token to compare with stored hash
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with valid reset token
+    const user = await this.usersService.findByResetToken(hashedToken);
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const resetExpiresAt = (user as any).resetPasswordExpiresAt;
+    
+    if (!resetExpiresAt) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    // Check if token is expired
+    if (new Date() > new Date(resetExpiresAt)) {
+      throw new BadRequestException('Reset token has expired');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear reset token
+    await this.usersService.resetPassword(user.id, hashedPassword);
+
+    return { message: 'Password has been reset successfully' };
   }
 }

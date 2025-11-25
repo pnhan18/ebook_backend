@@ -87,4 +87,23 @@ export class UsersService {
       password: hashedPassword,
     });
   }
+
+  async saveResetToken(userId: number, hashedToken: string, expiresAt: Date): Promise<void> {
+    await this.usersRepository.update(userId, {
+      resetPasswordToken: hashedToken,
+      resetPasswordExpiresAt: expiresAt,
+    });
+  }
+
+  async findByResetToken(hashedToken: string) {
+    return await this.usersRepository.findByResetToken(hashedToken);
+  }
+
+  async resetPassword(userId: number, hashedPassword: string): Promise<void> {
+    await this.usersRepository.update(userId, {
+      password: hashedPassword,
+      resetPasswordToken: null,
+      resetPasswordExpiresAt: null,
+    });
+  }
 }
