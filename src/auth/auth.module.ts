@@ -5,9 +5,14 @@ import { UsersModule } from 'src/users';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { PassportModule } from '@nestjs/passport';
+import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
-  imports: [PrismaModule, UsersModule,
+  imports: [
+    PrismaModule,
+    UsersModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -16,10 +21,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           expiresIn: (configService.get<string>('JWT_EXPIRES_IN') || '7d') as any,
         },
       }),
-      inject: [ConfigService]
-    })
+      inject: [ConfigService],
+    }),
   ],
-  providers: [AuthService],
+  providers: [AuthService, JwtStrategy],
   controllers: [AuthController],
+  exports: [PassportModule, JwtModule],
 })
 export class AuthModule {}
