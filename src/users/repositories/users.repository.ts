@@ -80,4 +80,17 @@ export class UsersRepository implements IUsersRepository {
       },
     });
   }
+
+  async findById(id: number): Promise<UserWithRoles | null> {
+    return this.prismaService.user.findUnique({
+      where: { id },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+  }
 }

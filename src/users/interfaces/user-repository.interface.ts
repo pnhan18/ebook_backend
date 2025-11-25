@@ -17,4 +17,5 @@ export interface IUsersRepository {
   findByEmail(email: string): Promise<UserWithRoles | null>;
   findByUsername(username: string): Promise<UserWithRoles | null>;
   update(id: number, data: Partial<User>): Promise<UserWithRoles>;
+  findById(id: number): Promise<UserWithRoles | null>;
 }

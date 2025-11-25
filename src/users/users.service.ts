@@ -60,4 +60,19 @@ export class UsersService {
       lastLoginAt: new Date(),
     });
   }
+
+  async findById(id: number): Promise<SafeUser | null> {
+    const user = await this.usersRepository.findById(id);
+
+    if (!user) {
+      return null;
+    }
+
+    const { password: _, roles, ...safeUser } = user;
+
+    return {
+      ...safeUser,
+      roles: roles.map((r) => r.role),
+    };
+  }
 }
