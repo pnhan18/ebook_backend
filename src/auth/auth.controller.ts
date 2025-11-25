@@ -6,6 +6,8 @@ import { JwtAuthGuard } from './guards';
 import { type AuthenticatedUser } from 'src/common';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CurrentUser } from 'src/common/decorators';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -34,5 +36,15 @@ export class AuthController {
         @Body() changePasswordDto: ChangePasswordDto,
     ) {
         return await this.authService.changePassword(user.id, changePasswordDto);
+    }
+
+    @Post('forgot-password')
+    async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+        return await this.authService.forgotPassword(forgotPasswordDto);
+    }
+
+    @Post('reset-password')
+    async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+        return await this.authService.resetPassword(resetPasswordDto);
     }
 }

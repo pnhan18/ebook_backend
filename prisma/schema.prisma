@@ -40,6 +40,8 @@ model User {
   subscriptionPlan SubscriptionPlan @default(FREE)
   status           Status           @default(ACTIVE)
   lastLoginAt      DateTime?
+  resetPasswordToken     String?
+  resetPasswordExpiresAt DateTime?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
