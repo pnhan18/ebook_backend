@@ -55,6 +55,8 @@ export class UsersService {
     return await this.usersRepository.findByEmail(email);
   }
 
+  
+
   async updateLastLogin(userId: number): Promise<void> {
     await this.usersRepository.update(userId, {
       lastLoginAt: new Date(),
@@ -74,5 +76,15 @@ export class UsersService {
       ...safeUser,
       roles: roles.map((r) => r.role),
     };
+  }
+
+  async findByIdWithPassword(id: number) {
+    return await this.usersRepository.findById(id);
+  }
+
+  async updatePassword(userId: number, hashedPassword: string): Promise<void> {
+    await this.usersRepository.update(userId, {
+      password: hashedPassword,
+    });
   }
 }
