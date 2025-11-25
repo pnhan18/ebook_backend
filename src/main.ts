@@ -3,9 +3,13 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters';
 import { TransformInterceptor } from './common/interceptors';
 import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Cookie parser middleware
+  app.use(cookieParser());
 
   // Global exception filter
   app.useGlobalFilters(new HttpExceptionFilter());
