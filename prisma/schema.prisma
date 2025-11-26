@@ -96,3 +96,18 @@ model Category {
   @@index([isActive])
   @@map("categories")
 }
+
+model Author {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  avatar    String?
+  bio       String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("authors")
+}
