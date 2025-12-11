@@ -12,6 +12,7 @@ import { StorageModule } from './storage/storage.module';
 import { QueueModule } from './queue/queue.module';
 import { BooksModule } from './books/books.module';
 import { ChaptersModule } from './chapters/chapters.module';
+import { BannersModule } from './banners/banners.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ChaptersModule } from './chapters/chapters.module';
     AuthorsModule,
     BooksModule,
     ChaptersModule,
+    BannersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
