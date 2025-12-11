@@ -34,6 +34,15 @@ enum BookStatus {
   FAILED
 }
 
+enum BannerPosition {
+  HOME_SLIDER
+  HOME_POPUP
+  SIDEBAR_LEFT
+  SIDEBAR_RIGHT
+  HEADER
+  FOOTER
+}
+
 model User {
   id                     Int              @id @default(autoincrement())
   email                  String           @unique
@@ -185,4 +194,24 @@ model BookAuthor {
   @@index([bookId])
   @@index([authorId])
   @@map("book_authors")
+}
+
+model Banner {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String?
+  imageUrl    String
+  linkUrl     String?
+  position    BannerPosition @default(HOME_SLIDER)
+  order       Int            @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([position])
+  @@index([isActive])
+  @@index([order])
+  @@map("banners")
 }
