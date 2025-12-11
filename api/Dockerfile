@@ -1,5 +1,5 @@
 # Sử dụng Node.js phiên bản LTS làm base image
-FROM node:18-alpine AS base
+FROM node:22-alpine AS base
 
 # Cài đặt dependencies cần thiết cho Alpine Linux
 RUN apk add --no-cache libc6-compat
@@ -22,6 +22,9 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy source code
 COPY . .
 
+# Generate Prisma client
+RUN npx prisma generate
+
 # Build ứng dụng NestJS
 RUN npm run build
 
@@ -32,7 +35,7 @@ COPY package*.json ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Stage 4: Runtime
-FROM node:18-alpine AS runtime
+FROM node:22-alpine AS runtime
 
 # Tạo user không phải root để chạy ứng dụng
 RUN addgroup --system --gid 1001 nodejs
@@ -52,11 +55,9 @@ USER nestjs
 # Expose port (thường là 3000 cho NestJS)
 EXPOSE 3000
 
-# Health check (kiểm tra endpoint mặc định của NestJS)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/ || exit 1
-
-RUN npx prisma generate
+# Copy prisma schema and generate client
+COPY --from=build --chown=nestjs:nodejs /app/prisma ./prisma
+COPY --from=build --chown=nestjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 
 # Khởi động ứng dụng
 CMD ["node", "dist/main"]

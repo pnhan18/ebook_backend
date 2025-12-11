@@ -1,0 +1,188 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SignupMethod {
+  GOOGLE
+  EMAIL
+  FACEBOOK
+}
+
+enum SubscriptionPlan {
+  FREE
+  PREMIUM
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+  BANNED
+}
+
+enum BookStatus {
+  DRAFT
+  PROCESSING
+  PUBLISHED
+  FAILED
+}
+
+model User {
+  id                     Int              @id @default(autoincrement())
+  email                  String           @unique
+  username               String           @unique
+  password               String
+  avatar                 String?
+  signupMethod           SignupMethod
+  subscriptionPlan       SubscriptionPlan @default(FREE)
+  status                 Status           @default(ACTIVE)
+  lastLoginAt            DateTime?
+  resetPasswordToken     String?
+  resetPasswordExpiresAt DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  roles                  UserRole[]
+
+  @@index([email])
+  @@index([username])
+  @@index([status])
+  @@map("users")
+}
+
+model Role {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId     Int
+  roleId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+  assignedBy Int?
+
+  @@id([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model Category {
+  id          Int            @id @default(autoincrement())
+  name        String
+  slug        String         @unique
+  description String?
+  parentId    Int?
+  parent      Category?      @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Category[]     @relation("CategoryHierarchy")
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  books       BookCategory[]
+
+  @@index([slug])
+  @@index([parentId])
+  @@index([isActive])
+  @@map("categories")
+}
+
+model Author {
+  id        Int          @id @default(autoincrement())
+  name      String
+  slug      String       @unique
+  avatar    String?
+  bio       String?
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  books     BookAuthor[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("authors")
+}
+
+model Book {
+  id            Int            @id @default(autoincrement())
+  title         String
+  slug          String         @unique
+  description   String?
+  coverImage    String?
+  sourceKey     String?
+  totalChapters Int            @default(0)
+  freeChapters  Int            @default(0)
+  price         Decimal?       @db.Decimal(10, 2)
+  requireLogin  Boolean        @default(false)
+  status        BookStatus     @default(DRAFT)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  categories    BookCategory[]
+  authors       BookAuthor[]
+  chapters      Chapter[]
+
+  @@index([slug])
+  @@index([status])
+  @@index([isActive])
+  @@map("books")
+}
+
+model Chapter {
+  id          Int      @id @default(autoincrement())
+  bookId      Int
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  title       String
+  slug        String
+  contentKey  String?
+  contentType String?
+  contentSize Int?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([bookId, slug])
+  @@index([bookId])
+  @@index([order])
+  @@map("chapters")
+}
+
+model BookCategory {
+  bookId     Int
+  categoryId Int
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@id([bookId, categoryId])
+  @@index([bookId])
+  @@index([categoryId])
+  @@map("book_categories")
+}
+
+model BookAuthor {
+  bookId     Int
+  authorId   Int
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  author     Author   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@id([bookId, authorId])
+  @@index([bookId])
+  @@index([authorId])
+  @@map("book_authors")
+}
