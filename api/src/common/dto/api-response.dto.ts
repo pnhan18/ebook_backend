@@ -1,44 +1,44 @@
-import { ApiResponse } from '../interfaces/api-response.interface';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class ApiResponseDto<T = any> implements ApiResponse<T> {
+export class ApiResponseDto<T = any> {
+  @ApiProperty({ example: true })
   success: boolean;
+
+  @ApiProperty({ example: 200 })
   statusCode: number;
+
+  @ApiProperty({ example: 'Request successful' })
   message: string;
+
+  @ApiPropertyOptional()
   data?: T;
+
+  @ApiProperty({ example: '2025-12-12T10:00:00.000Z' })
   timestamp: string;
+
+  @ApiProperty({ example: '/api/endpoint' })
   path: string;
+}
 
-  constructor(
-    statusCode: number,
-    message: string,
-    data?: T,
-    path?: string,
-  ) {
-    this.success = statusCode < 400;
-    this.statusCode = statusCode;
-    this.message = message;
-    this.data = data;
-    this.timestamp = new Date().toISOString();
-    this.path = path || '';
-  }
+export class ErrorResponseDto {
+  @ApiProperty({ example: false })
+  success: boolean;
 
-  static success<T>(
-    message: string,
-    data?: T,
-    statusCode: number = 200,
-  ): ApiResponseDto<T> {
-    return new ApiResponseDto(statusCode, message, data);
-  }
+  @ApiProperty({ example: 400 })
+  statusCode: number;
 
-  static error(
-    message: string,
-    statusCode: number = 500,
-    error?: any,
-  ): ApiResponseDto {
-    const response = new ApiResponseDto(statusCode, message);
-    if (error) {
-      response.data = { error };
-    }
-    return response;
-  }
+  @ApiProperty({ example: 'Error message' })
+  message: string;
+
+  @ApiPropertyOptional({ example: 'BadRequestException' })
+  error?: string;
+
+  @ApiPropertyOptional({ type: [String], example: ['field must be a string'] })
+  errors?: string[];
+
+  @ApiProperty({ example: '2025-12-12T10:00:00.000Z' })
+  timestamp: string;
+
+  @ApiProperty({ example: '/api/endpoint' })
+  path: string;
 }
