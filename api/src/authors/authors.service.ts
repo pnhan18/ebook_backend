@@ -1,12 +1,28 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { Author } from '@prisma/client';
 import { AuthorsRepository } from './repositories/authors.repository';
+import { StorageService } from 'src/storage/storage.service';
 import { CreateAuthorDto, UpdateAuthorDto } from './dto';
-import { PaginationQueryDto, PaginatedResponseDto, generateSlug } from '../common';
+import { PaginationQueryDto, PaginatedResponseDto, generateSlug, StorageUrlHelper } from '../common';
 
 @Injectable()
 export class AuthorsService {
-  constructor(private readonly authorsRepository: AuthorsRepository) {}
+  private readonly urlHelper: StorageUrlHelper;
+
+  constructor(
+    private readonly authorsRepository: AuthorsRepository,
+    private readonly storageService: StorageService,
+  ) {
+    this.urlHelper = new StorageUrlHelper(storageService);
+  }
+
+  private async transformAuthorUrls<T extends { avatar?: string | null }>(author: T): Promise<T> {
+    return this.urlHelper.transformOne(author, ['avatar']);
+  }
+
+  private async transformAuthorsUrls<T extends { avatar?: string | null }>(authors: T[]): Promise<T[]> {
+    return this.urlHelper.transformMany(authors, ['avatar']);
+  }
 
   private async generateUniqueSlug(name: string): Promise<string> {
     let slug = generateSlug(name);
@@ -37,7 +53,8 @@ export class AuthorsService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const { data, total } = await this.authorsRepository.findAll({ page, limit });
-    return new PaginatedResponseDto(data, total, page, limit);
+    const transformedData = await this.transformAuthorsUrls(data);
+    return new PaginatedResponseDto(transformedData, total, page, limit);
   }
 
   async findOne(id: number): Promise<Author> {
@@ -45,7 +62,7 @@ export class AuthorsService {
     if (!author) {
       throw new NotFoundException(`Author with ID ${id} not found`);
     }
-    return author;
+    return this.transformAuthorUrls(author);
   }
 
   async findBySlug(slug: string): Promise<Author> {
@@ -53,7 +70,7 @@ export class AuthorsService {
     if (!author) {
       throw new NotFoundException(`Author with slug "${slug}" not found`);
     }
-    return author;
+    return this.transformAuthorUrls(author);
   }
 
   async update(id: number, updateAuthorDto: UpdateAuthorDto): Promise<Author> {

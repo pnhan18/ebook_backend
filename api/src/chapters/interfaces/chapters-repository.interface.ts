@@ -4,6 +4,7 @@ export type ChapterWithBook = Chapter & {
   book: {
     freeChapters: number;
     requireLogin: boolean;
+    coverImage: string | null;
   };
 };
 

@@ -1,12 +1,28 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Banner } from '@prisma/client';
 import { BannersRepository } from './repositories/banners.repository';
+import { StorageService } from 'src/storage/storage.service';
 import { CreateBannerDto, UpdateBannerDto, AdminQueryBannerDto, PublicQueryBannerDto } from './dto';
-import { PaginatedResponseDto } from '../common';
+import { PaginatedResponseDto, StorageUrlHelper } from '../common';
 
 @Injectable()
 export class BannersService {
-  constructor(private readonly bannersRepository: BannersRepository) {}
+  private readonly urlHelper: StorageUrlHelper;
+
+  constructor(
+    private readonly bannersRepository: BannersRepository,
+    private readonly storageService: StorageService,
+  ) {
+    this.urlHelper = new StorageUrlHelper(storageService);
+  }
+
+  private async transformBannerUrls<T extends { imageUrl?: string | null }>(banner: T): Promise<T> {
+    return this.urlHelper.transformOne(banner, ['imageUrl']);
+  }
+
+  private async transformBannersUrls<T extends { imageUrl?: string | null }>(banners: T[]): Promise<T[]> {
+    return this.urlHelper.transformMany(banners, ['imageUrl']);
+  }
 
   async create(createBannerDto: CreateBannerDto): Promise<Banner> {
     return this.bannersRepository.create({
@@ -24,7 +40,8 @@ export class BannersService {
       limit,
       position: query.position,
     });
-    return new PaginatedResponseDto(data, total, page, limit);
+    const transformedData = await this.transformBannersUrls(data);
+    return new PaginatedResponseDto(transformedData, total, page, limit);
   }
 
   async findAllAdmin(query: AdminQueryBannerDto): Promise<PaginatedResponseDto<Banner>> {
@@ -36,7 +53,8 @@ export class BannersService {
       position: query.position,
       isActive: query.isActive,
     });
-    return new PaginatedResponseDto(data, total, page, limit);
+    const transformedData = await this.transformBannersUrls(data);
+    return new PaginatedResponseDto(transformedData, total, page, limit);
   }
 
   async findOne(id: number): Promise<Banner> {
@@ -44,7 +62,7 @@ export class BannersService {
     if (!banner) {
       throw new NotFoundException(`Banner with ID ${id} not found`);
     }
-    return banner;
+    return this.transformBannerUrls(banner);
   }
 
   async update(id: number, updateBannerDto: UpdateBannerDto): Promise<Banner> {

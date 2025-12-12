@@ -26,7 +26,7 @@ export class ChaptersRepository implements IChaptersRepository {
     });
   }
 
-  async findBySlug(bookId: number, slug: string) {
+  async findBySlug(bookId: number, slug: string): Promise<import('../interfaces/chapters-repository.interface').ChapterWithBook | null> {
     return this.prisma.chapter.findUnique({
       where: { bookId_slug: { bookId, slug } },
       include: {
@@ -34,6 +34,7 @@ export class ChaptersRepository implements IChaptersRepository {
           select: {
             freeChapters: true,
             requireLogin: true,
+            coverImage: true,
           },
         },
       },

@@ -3,6 +3,7 @@ import { SubscriptionPlan } from '@prisma/client';
 import { ChaptersRepository } from './repositories/chapters.repository';
 import { ChapterWithBook } from './interfaces/chapters-repository.interface';
 import { StorageService } from 'src/storage/storage.service';
+import { StorageUrlHelper } from 'src/common';
 
 interface UserContext {
   id: number;
@@ -11,10 +12,14 @@ interface UserContext {
 
 @Injectable()
 export class ChaptersService {
+  private readonly urlHelper: StorageUrlHelper;
+
   constructor(
     private readonly chaptersRepository: ChaptersRepository,
     private readonly storageService: StorageService,
-  ) {}
+  ) {
+    this.urlHelper = new StorageUrlHelper(storageService);
+  }
 
   async findByBookId(bookId: number) {
     return this.chaptersRepository.findByBookId(bookId);
@@ -36,14 +41,20 @@ export class ChaptersService {
 
     const hasAccess = this.checkChapterAccess(chapter, user);
 
+    // Generate presigned URL if user has access
     let contentUrl: string | null = null;
     if (hasAccess && chapter.contentKey) {
-      contentUrl = await this.storageService.getPresignedDownloadUrl(
-        chapter.contentKey,
-      );
+      contentUrl = await this.storageService.getPresignedDownloadUrl(chapter.contentKey);
     }
 
-    return { ...chapter, contentUrl, hasAccess };
+    // Remove book and contentKey from response
+    const { book, contentKey, ...chapterData } = chapter;
+
+    return {
+      ...chapterData,
+      contentUrl,
+      hasAccess,
+    };
   }
 
   private checkChapterAccess(

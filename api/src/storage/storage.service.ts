@@ -13,6 +13,7 @@ import { randomUUID } from 'crypto';
 export class StorageService {
   private readonly s3Client: S3Client;
   private readonly bucketName: string;
+  private readonly presignedUrlExpiresIn: number;
 
   constructor(private readonly configService: ConfigService) {
     this.s3Client = new S3Client({
@@ -24,6 +25,7 @@ export class StorageService {
       },
     });
     this.bucketName = this.configService.getOrThrow<string>('R2_BUCKET_NAME');
+    this.presignedUrlExpiresIn = this.configService.get<number>('PRESIGNED_URL_EXPIRES_IN') || 300;
   }
 
   private getContentType(filename: string): string {
@@ -60,13 +62,15 @@ export class StorageService {
     return { key, uploadUrl };
   }
 
-  async getPresignedDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+  async getPresignedDownloadUrl(key: string, expiresIn?: number): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: this.bucketName,
       Key: key,
     });
 
-    return getSignedUrl(this.s3Client, command, { expiresIn });
+    return getSignedUrl(this.s3Client, command, {
+      expiresIn: expiresIn ?? this.presignedUrlExpiresIn,
+    });
   }
 
   async deleteObject(key: string): Promise<void> {

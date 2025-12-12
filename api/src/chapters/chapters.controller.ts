@@ -29,7 +29,7 @@ export class ChaptersController {
   @Get(':slug')
   @UseGuards(JwtOptionalGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get chapter content by slug' })
+  @ApiOperation({ summary: 'Get chapter detail with content URL' })
   @ApiParam({ name: 'bookId', type: Number, description: 'Book ID' })
   @ApiParam({ name: 'slug', type: String, description: 'Chapter slug' })
   @ApiSuccessResponse(ChapterDetailResponseDto)

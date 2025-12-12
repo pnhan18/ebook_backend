@@ -8,15 +8,27 @@ import { BooksRepository } from './repositories/books.repository';
 import { StorageService } from 'src/storage/storage.service';
 import { QueueService } from 'src/queue/queue.service';
 import { CreateBookDto, UpdateBookDto, AdminQueryBookDto, PublicQueryBookDto } from './dto';
-import { PaginatedResponseDto, generateSlug } from '../common';
+import { PaginatedResponseDto, generateSlug, StorageUrlHelper } from '../common';
 
 @Injectable()
 export class BooksService {
+  private readonly urlHelper: StorageUrlHelper;
+
   constructor(
     private readonly booksRepository: BooksRepository,
     private readonly storageService: StorageService,
     private readonly queueService: QueueService,
-  ) {}
+  ) {
+    this.urlHelper = new StorageUrlHelper(storageService);
+  }
+
+  private async transformBookUrls<T extends { coverImage?: string | null }>(book: T): Promise<T> {
+    return this.urlHelper.transformOne(book, ['coverImage']);
+  }
+
+  private async transformBooksUrls<T extends { coverImage?: string | null }>(books: T[]): Promise<T[]> {
+    return this.urlHelper.transformMany(books, ['coverImage']);
+  }
 
   private async generateUniqueSlug(title: string): Promise<string> {
     let slug = generateSlug(title);
@@ -76,7 +88,8 @@ export class BooksService {
       categoryId: query.categoryId,
       authorId: query.authorId,
     });
-    return new PaginatedResponseDto(data, total, page, limit);
+    const transformedData = await this.transformBooksUrls(data);
+    return new PaginatedResponseDto(transformedData, total, page, limit);
   }
 
   async findAllAdmin(query: AdminQueryBookDto): Promise<PaginatedResponseDto<Book>> {
@@ -91,7 +104,8 @@ export class BooksService {
       categoryId: query.categoryId,
       authorId: query.authorId,
     });
-    return new PaginatedResponseDto(data, total, page, limit);
+    const transformedData = await this.transformBooksUrls(data);
+    return new PaginatedResponseDto(transformedData, total, page, limit);
   }
 
   async findOne(id: number): Promise<Book> {
@@ -99,7 +113,7 @@ export class BooksService {
     if (!book) {
       throw new NotFoundException(`Book with ID ${id} not found`);
     }
-    return book;
+    return this.transformBookUrls(book);
   }
 
   async findBySlug(slug: string): Promise<Book> {
@@ -107,7 +121,7 @@ export class BooksService {
     if (!book) {
       throw new NotFoundException(`Book with slug "${slug}" not found`);
     }
-    return book;
+    return this.transformBookUrls(book);
   }
 
   async update(id: number, updateBookDto: UpdateBookDto): Promise<Book> {
