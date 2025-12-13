@@ -34,6 +34,9 @@ export class BookResponseDto {
   @ApiProperty({ example: true })
   isActive: boolean;
 
+  @ApiProperty({ example: 1250, description: 'Total view count' })
+  viewCount: number;
+
   @ApiProperty({ example: '2025-12-12T10:00:00.000Z' })
   createdAt: Date;
 

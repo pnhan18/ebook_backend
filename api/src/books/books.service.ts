@@ -116,11 +116,27 @@ export class BooksService {
     return this.transformBookUrls(book);
   }
 
-  async findBySlug(slug: string): Promise<Book> {
+  async findBySlug(
+    slug: string,
+    viewContext?: { userId?: number; ipAddress?: string; userAgent?: string },
+  ): Promise<Book> {
     const book = await this.booksRepository.findBySlug(slug);
-    if (!book) {
+
+    // Public: only return published and active books
+    if (!book || book.status !== BookStatus.PUBLISHED || !book.isActive) {
       throw new NotFoundException(`Book with slug "${slug}" not found`);
     }
+
+    // Record view if context provided
+    if (viewContext) {
+      await this.booksRepository.recordView(
+        book.id,
+        viewContext.userId,
+        viewContext.ipAddress,
+        viewContext.userAgent,
+      );
+    }
+
     return this.transformBookUrls(book);
   }
 
@@ -177,5 +193,16 @@ export class BooksService {
     await Promise.allSettled(deletePromises);
 
     return this.booksRepository.delete(id);
+  }
+
+  async findPopular(limit = 10): Promise<Book[]> {
+    const books = await this.booksRepository.findPopular(limit);
+    return this.transformBooksUrls(books);
+  }
+
+  async findTrending(period: 'week' | 'month' = 'week', limit = 10): Promise<Book[]> {
+    const days = period === 'week' ? 7 : 30;
+    const books = await this.booksRepository.findTrending(days, limit);
+    return this.transformBooksUrls(books);
   }
 }

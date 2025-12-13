@@ -193,4 +193,125 @@ export class BooksRepository implements IBooksRepository {
       });
     }
   }
+
+  async recordView(
+    bookId: number,
+    userId?: number,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<boolean> {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    // Check if already viewed in last 24h (by user or IP)
+    const existingView = await this.prisma.bookView.findFirst({
+      where: {
+        bookId,
+        viewedAt: { gte: oneDayAgo },
+        OR: [
+          ...(userId ? [{ userId }] : []),
+          ...(ipAddress ? [{ ipAddress, userId: null }] : []),
+        ],
+      },
+    });
+
+    if (existingView) {
+      return false; // Already viewed
+    }
+
+    // Record new view and increment counter
+    await this.prisma.$transaction([
+      this.prisma.bookView.create({
+        data: { bookId, userId, ipAddress, userAgent },
+      }),
+      this.prisma.book.update({
+        where: { id: bookId },
+        data: { viewCount: { increment: 1 } },
+      }),
+    ]);
+
+    return true;
+  }
+
+  async getViewCount(bookId: number): Promise<number> {
+    const book = await this.prisma.book.findUnique({
+      where: { id: bookId },
+      select: { viewCount: true },
+    });
+    return book?.viewCount ?? 0;
+  }
+
+  private readonly publicBookSelect = {
+    id: true,
+    title: true,
+    slug: true,
+    description: true,
+    coverImage: true,
+    totalChapters: true,
+    freeChapters: true,
+    viewCount: true,
+    price: true,
+    authors: {
+      select: { author: { select: { id: true, name: true, slug: true } } },
+    },
+    categories: {
+      select: { category: { select: { id: true, name: true, slug: true } } },
+    },
+  };
+
+  private readonly minimalBookSelect = {
+    id: true,
+    title: true,
+    slug: true,
+    coverImage: true,
+    viewCount: true,
+  };
+
+  async findPopular(limit: number): Promise<Book[]> {
+    const books = await this.prisma.book.findMany({
+      where: {
+        status: BookStatus.PUBLISHED,
+        isActive: true,
+      },
+      orderBy: { viewCount: 'desc' },
+      take: limit,
+      select: this.minimalBookSelect,
+    });
+
+    return books as unknown as Book[];
+  }
+
+  async findTrending(days: number, limit: number): Promise<Book[]> {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    // Get book IDs with most views in the period
+    const trendingBooks = await this.prisma.bookView.groupBy({
+      by: ['bookId'],
+      where: {
+        viewedAt: { gte: since },
+        book: {
+          status: BookStatus.PUBLISHED,
+          isActive: true,
+        },
+      },
+      _count: { bookId: true },
+      orderBy: { _count: { bookId: 'desc' } },
+      take: limit,
+    });
+
+    if (trendingBooks.length === 0) {
+      return [];
+    }
+
+    const bookIds = trendingBooks.map((b) => b.bookId);
+
+    // Fetch minimal book data
+    const books = await this.prisma.book.findMany({
+      where: { id: { in: bookIds } },
+      select: this.minimalBookSelect,
+    });
+
+    // Sort by trending order
+    const bookMap = new Map(books.map((b) => [b.id, b]));
+    return bookIds.map((id) => bookMap.get(id)).filter(Boolean) as unknown as Book[];
+  }
 }

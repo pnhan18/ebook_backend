@@ -11,14 +11,18 @@ import {
   HttpStatus,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { BooksService } from './books.service';
-import { CreateBookDto, UpdateBookDto, AdminQueryBookDto, PublicQueryBookDto, BookResponseDto } from './dto';
-import { JwtAuthGuard, RolesGuard } from 'src/auth/guards';
+import { CreateBookDto, UpdateBookDto, AdminQueryBookDto, PublicQueryBookDto, BookResponseDto, BookMinimalResponseDto } from './dto';
+import { JwtAuthGuard, RolesGuard, JwtOptionalGuard } from 'src/auth/guards';
 import {
   Roles,
+  CurrentUser,
   ApiSuccessResponse,
+  ApiSuccessArrayResponse,
   ApiPaginatedResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
@@ -26,6 +30,7 @@ import {
   ApiNotFoundResponse,
   ApiConflictResponse,
 } from 'src/common/decorators';
+import type { AuthenticatedUser } from 'src/common';
 
 @ApiTags('Books')
 @Controller('books')
@@ -39,20 +44,42 @@ export class BooksController {
     return this.booksService.findAllPublic(query);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get book by ID' })
-  @ApiSuccessResponse(BookResponseDto)
-  @ApiNotFoundResponse('Book not found')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.booksService.findOne(id);
+  @Get('popular')
+  @ApiOperation({ summary: 'Get most popular books (all time)' })
+  @ApiSuccessArrayResponse(BookMinimalResponseDto)
+  findPopular(@Query('limit', new ParseIntPipe({ optional: true })) limit?: number) {
+    return this.booksService.findPopular(limit || 10);
   }
 
-  @Get('slug/:slug')
-  @ApiOperation({ summary: 'Get book by slug' })
+  @Get('trending')
+  @ApiOperation({ summary: 'Get trending books (week or month)' })
+  @ApiSuccessArrayResponse(BookMinimalResponseDto)
+  findTrending(
+    @Query('period') period?: 'week' | 'month',
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+  ) {
+    return this.booksService.findTrending(period || 'week', limit || 10);
+  }
+
+  @Get(':slug')
+  @UseGuards(JwtOptionalGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get book by slug (records view)' })
   @ApiSuccessResponse(BookResponseDto)
   @ApiNotFoundResponse('Book not found')
-  findBySlug(@Param('slug') slug: string) {
-    return this.booksService.findBySlug(slug);
+  findBySlug(
+    @Param('slug') slug: string,
+    @Req() req: Request,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    const ipAddress = req.ip || req.headers['x-forwarded-for']?.toString();
+    const userAgent = req.headers['user-agent'];
+
+    return this.booksService.findBySlug(slug, {
+      userId: user?.id,
+      ipAddress,
+      userAgent,
+    });
   }
 }
 

@@ -26,4 +26,13 @@ export interface IBooksRepository {
   updateStatus(id: number, status: string): Promise<Book>;
   setCategories(bookId: number, categoryIds: number[]): Promise<void>;
   setAuthors(bookId: number, authorIds: number[]): Promise<void>;
+  recordView(
+    bookId: number,
+    userId?: number,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<boolean>;
+  getViewCount(bookId: number): Promise<number>;
+  findPopular(limit: number): Promise<Book[]>;
+  findTrending(days: number, limit: number): Promise<Book[]>;
 }
