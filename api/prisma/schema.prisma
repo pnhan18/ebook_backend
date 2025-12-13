@@ -58,6 +58,7 @@ model User {
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
   roles                  UserRole[]
+  bookViews              BookView[]
 
   @@index([email])
   @@index([username])
@@ -138,15 +139,18 @@ model Book {
   requireLogin  Boolean        @default(false)
   status        BookStatus     @default(DRAFT)
   isActive      Boolean        @default(true)
+  viewCount     Int            @default(0)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   categories    BookCategory[]
   authors       BookAuthor[]
   chapters      Chapter[]
+  views         BookView[]
 
   @@index([slug])
   @@index([status])
   @@index([isActive])
+  @@index([viewCount])
   @@map("books")
 }
 
@@ -214,4 +218,22 @@ model Banner {
   @@index([isActive])
   @@index([order])
   @@map("banners")
+}
+
+
+model BookView {
+  id        Int      @id @default(autoincrement())
+  bookId    Int
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress String?
+  userAgent String?
+  viewedAt  DateTime @default(now())
+
+  @@index([bookId])
+  @@index([userId])
+  @@index([viewedAt])
+  @@index([bookId, ipAddress])
+  @@map("book_views")
 }
