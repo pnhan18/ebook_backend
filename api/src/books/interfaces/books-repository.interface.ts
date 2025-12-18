@@ -35,4 +35,5 @@ export interface IBooksRepository {
   getViewCount(bookId: number): Promise<number>;
   findPopular(limit: number): Promise<Book[]>;
   findTrending(days: number, limit: number): Promise<Book[]>;
+  findLatest(limit: number): Promise<Book[]>;
 }

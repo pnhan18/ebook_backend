@@ -314,4 +314,18 @@ export class BooksRepository implements IBooksRepository {
     const bookMap = new Map(books.map((b) => [b.id, b]));
     return bookIds.map((id) => bookMap.get(id)).filter(Boolean) as unknown as Book[];
   }
+
+  async findLatest(limit: number): Promise<Book[]> {
+    const books = await this.prisma.book.findMany({
+      where: {
+        status: BookStatus.PUBLISHED,
+        isActive: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: this.minimalBookSelect,
+    });
+
+    return books as unknown as Book[];
+  }
 }

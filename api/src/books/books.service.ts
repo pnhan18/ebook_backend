@@ -205,4 +205,9 @@ export class BooksService {
     const books = await this.booksRepository.findTrending(days, limit);
     return this.transformBooksUrls(books);
   }
+
+  async findLatest(limit = 10): Promise<Book[]> {
+    const books = await this.booksRepository.findLatest(limit);
+    return this.transformBooksUrls(books);
+  }
 }

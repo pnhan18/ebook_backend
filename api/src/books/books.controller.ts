@@ -61,6 +61,13 @@ export class BooksController {
     return this.booksService.findTrending(period || 'week', limit || 10);
   }
 
+  @Get('latest')
+  @ApiOperation({ summary: 'Get latest books' })
+  @ApiSuccessArrayResponse(BookMinimalResponseDto)
+  findLatest(@Query('limit', new ParseIntPipe({ optional: true })) limit?: number) {
+    return this.booksService.findLatest(limit || 10);
+  }
+
   @Get(':slug')
   @UseGuards(JwtOptionalGuard)
   @ApiBearerAuth('JWT-auth')
