@@ -9,7 +9,7 @@ export type ChapterWithBook = Chapter & {
 };
 
 export interface IChaptersRepository {
-  findByBookId(bookId: number): Promise<Chapter[]>;
+  findByBookSlug(bookSlug: string): Promise<Chapter[]>;
   findById(id: number): Promise<Chapter | null>;
-  findBySlug(bookId: number, slug: string): Promise<ChapterWithBook | null>;
+  findBySlug(bookSlug: string, chapterSlug: string): Promise<ChapterWithBook | null>;
 }

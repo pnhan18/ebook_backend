@@ -7,9 +7,9 @@ import { IChaptersRepository } from '../interfaces/chapters-repository.interface
 export class ChaptersRepository implements IChaptersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findByBookId(bookId: number): Promise<Chapter[]> {
+  async findByBookSlug(bookSlug: string): Promise<Chapter[]> {
     return this.prisma.chapter.findMany({
-      where: { bookId },
+      where: { book: { slug: bookSlug } },
       orderBy: { order: 'asc' },
       select: {
         id: true,
@@ -26,9 +26,12 @@ export class ChaptersRepository implements IChaptersRepository {
     });
   }
 
-  async findBySlug(bookId: number, slug: string): Promise<import('../interfaces/chapters-repository.interface').ChapterWithBook | null> {
-    return this.prisma.chapter.findUnique({
-      where: { bookId_slug: { bookId, slug } },
+  async findBySlug(bookSlug: string, chapterSlug: string): Promise<import('../interfaces/chapters-repository.interface').ChapterWithBook | null> {
+    return this.prisma.chapter.findFirst({
+      where: {
+        slug: chapterSlug,
+        book: { slug: bookSlug },
+      },
       include: {
         book: {
           select: {

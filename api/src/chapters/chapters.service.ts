@@ -21,8 +21,8 @@ export class ChaptersService {
     this.urlHelper = new StorageUrlHelper(storageService);
   }
 
-  async findByBookId(bookId: number) {
-    return this.chaptersRepository.findByBookId(bookId);
+  async findByBookSlug(bookSlug: string) {
+    return this.chaptersRepository.findByBookSlug(bookSlug);
   }
 
   async findOne(id: number) {
@@ -33,10 +33,10 @@ export class ChaptersService {
     return chapter;
   }
 
-  async findBySlug(bookId: number, slug: string, user?: UserContext) {
-    const chapter = await this.chaptersRepository.findBySlug(bookId, slug);
+  async findBySlug(bookSlug: string, chapterSlug: string, user?: UserContext) {
+    const chapter = await this.chaptersRepository.findBySlug(bookSlug, chapterSlug);
     if (!chapter) {
-      throw new NotFoundException(`Chapter with slug "${slug}" not found`);
+      throw new NotFoundException(`Chapter with slug "${chapterSlug}" not found`);
     }
 
     const hasAccess = this.checkChapterAccess(chapter, user);
