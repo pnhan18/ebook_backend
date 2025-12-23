@@ -49,12 +49,17 @@ export class BooksRepository implements IBooksRepository {
     const skip = (page - 1) * limit;
     const where = this.buildWhereClause(options);
 
+    // Build orderBy
+    const sortBy = options.sortBy || 'createdAt';
+    const sortOrder = options.sortOrder || 'desc';
+    const orderBy: Prisma.BookOrderByWithRelationInput = { [sortBy]: sortOrder };
+
     const [data, total] = await Promise.all([
       this.prisma.book.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         select: {
           id: true,
           title: true,
@@ -63,6 +68,7 @@ export class BooksRepository implements IBooksRepository {
           status: true,
           isActive: true,
           totalChapters: true,
+          viewCount: true,
           createdAt: true,
           updatedAt: true,
           authors: {
@@ -95,20 +101,52 @@ export class BooksRepository implements IBooksRepository {
       ];
     }
 
-    if (options.categoryId) {
-      baseWhere.categories = { some: { categoryId: options.categoryId } };
+    // Categories by slugs (multiple)
+    if (options.categorySlugs?.length) {
+      baseWhere.categories = {
+        some: { category: { slug: { in: options.categorySlugs } } },
+      };
     }
 
-    if (options.authorId) {
-      baseWhere.authors = { some: { authorId: options.authorId } };
+    // Authors by slugs (multiple)
+    if (options.authorSlugs?.length) {
+      baseWhere.authors = {
+        some: { author: { slug: { in: options.authorSlugs } } },
+      };
     }
+
+    // Free books filter (deprecated, use accessType)
+    if (options.isFree === true) {
+      (baseWhere as any).accessType = 'FREE';
+    }
+
+    // Access type filter
+    if (options.accessType) {
+      (baseWhere as any).accessType = options.accessType;
+    }
+
+    // Price filter for purchase books
+    if (options.minPrice !== undefined || options.maxPrice !== undefined) {
+      baseWhere.price = { gt: 0 };
+      if (options.minPrice !== undefined) {
+        (baseWhere.price as Prisma.IntNullableFilter).gte = options.minPrice;
+      }
+      if (options.maxPrice !== undefined) {
+        (baseWhere.price as Prisma.IntNullableFilter).lte = options.maxPrice;
+      }
+    }
+
+    // Build orderBy
+    const sortBy = options.sortBy || 'createdAt';
+    const sortOrder = options.sortOrder || 'desc';
+    const orderBy: Prisma.BookOrderByWithRelationInput = { [sortBy]: sortOrder };
 
     const [data, total] = await Promise.all([
       this.prisma.book.findMany({
         where: baseWhere,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         select: {
           id: true,
           title: true,
@@ -118,13 +156,16 @@ export class BooksRepository implements IBooksRepository {
           totalChapters: true,
           freeChapters: true,
           price: true,
+          accessType: true as any,
+          viewCount: true,
+          createdAt: true,
           authors: {
             select: { author: { select: { id: true, name: true, slug: true } } },
           },
           categories: {
             select: { category: { select: { id: true, name: true, slug: true } } },
           },
-        },
+        } as any,
       }),
       this.prisma.book.count({ where: baseWhere }),
     ]);
@@ -274,7 +315,10 @@ export class BooksRepository implements IBooksRepository {
       },
       orderBy: { viewCount: 'desc' },
       take: limit,
-      select: this.minimalBookSelect,
+      select: {
+        ...this.minimalBookSelect,
+        authors: { select: { author: { select: { id: true, name: true } } } }
+      },
     });
 
     return books as unknown as Book[];
@@ -283,19 +327,15 @@ export class BooksRepository implements IBooksRepository {
   async findTrending(days: number, limit: number): Promise<Book[]> {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    // Get book IDs with most views in the period
+    // Get book IDs with most views in the period (groupBy doesn't support relation filters)
     const trendingBooks = await this.prisma.bookView.groupBy({
       by: ['bookId'],
       where: {
         viewedAt: { gte: since },
-        book: {
-          status: BookStatus.PUBLISHED,
-          isActive: true,
-        },
       },
       _count: { bookId: true },
       orderBy: { _count: { bookId: 'desc' } },
-      take: limit,
+      take: limit * 3, // Fetch more to account for filtering
     });
 
     if (trendingBooks.length === 0) {
@@ -304,15 +344,25 @@ export class BooksRepository implements IBooksRepository {
 
     const bookIds = trendingBooks.map((b) => b.bookId);
 
-    // Fetch minimal book data
+    // Fetch books with status/isActive filter
     const books = await this.prisma.book.findMany({
-      where: { id: { in: bookIds } },
-      select: this.minimalBookSelect,
+      where: {
+        id: { in: bookIds },
+        status: BookStatus.PUBLISHED,
+        isActive: true,
+      },
+      select: {
+        ...this.minimalBookSelect,
+        authors: { select: { author: { select: { id: true, name: true } } } }
+      },
     });
 
-    // Sort by trending order
+    // Sort by trending order and limit
     const bookMap = new Map(books.map((b) => [b.id, b]));
-    return bookIds.map((id) => bookMap.get(id)).filter(Boolean) as unknown as Book[];
+    return bookIds
+      .map((id) => bookMap.get(id))
+      .filter(Boolean)
+      .slice(0, limit) as unknown as Book[];
   }
 
   async findLatest(limit: number): Promise<Book[]> {
