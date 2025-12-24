@@ -13,6 +13,7 @@ import { QueueModule } from './queue/queue.module';
 import { BooksModule } from './books/books.module';
 import { ChaptersModule } from './chapters/chapters.module';
 import { BannersModule } from './banners/banners.module';
+import { SearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { BannersModule } from './banners/banners.module';
     BooksModule,
     ChaptersModule,
     BannersModule,
+    SearchModule
   ],
   controllers: [AppController],
   providers: [AppService],
