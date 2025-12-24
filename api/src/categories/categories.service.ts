@@ -3,10 +3,14 @@ import { Category } from '@prisma/client';
 import { CategoriesRepository } from './repositories/categories.repository';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 import { PaginationQueryDto, PaginatedResponseDto, generateSlug } from '../common';
+import { CategoriesSearchService } from './search/categories-search.service';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly categoriesRepository: CategoriesRepository) {}
+  constructor(
+    private readonly categoriesRepository: CategoriesRepository,
+    private readonly categoriesSearchService: CategoriesSearchService,
+  ) {}
 
   private async generateUniqueSlug(name: string): Promise<string> {
     let slug = generateSlug(name);
@@ -37,7 +41,9 @@ export class CategoriesService {
       }
     }
 
-    return this.categoriesRepository.create({ ...createCategoryDto, slug });
+    const category = await this.categoriesRepository.create({ ...createCategoryDto, slug });
+    await this.categoriesSearchService.indexCategory(category);
+    return category;
   }
 
   async findAll(query: PaginationQueryDto): Promise<PaginatedResponseDto<Category>> {
@@ -83,11 +89,15 @@ export class CategoriesService {
       }
     }
 
-    return this.categoriesRepository.update(id, updateCategoryDto);
+    const category = await this.categoriesRepository.update(id, updateCategoryDto);
+    await this.categoriesSearchService.updateCategory(category);
+    return category;
   }
 
   async remove(id: number): Promise<Category> {
     await this.findOne(id);
-    return this.categoriesRepository.delete(id);
+    const category = await this.categoriesRepository.delete(id);
+    await this.categoriesSearchService.deleteCategory(id);
+    return category;
   }
 }

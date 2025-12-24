@@ -3,11 +3,13 @@ import { CategoriesService } from './categories.service';
 import { CategoriesController } from './categories.controller';
 import { CategoriesRepository } from './repositories/categories.repository';
 import { PrismaModule } from '../prisma/prisma.module';
+import { SearchModule } from '../search/search.module';
+import { CategoriesSearchService } from './search/categories-search.service';
 
 @Module({
-  imports: [PrismaModule],
-  providers: [CategoriesService, CategoriesRepository],
+  imports: [PrismaModule, SearchModule],
+  providers: [CategoriesService, CategoriesRepository, CategoriesSearchService],
   controllers: [CategoriesController],
-  exports: [CategoriesService],
+  exports: [CategoriesService, CategoriesSearchService],
 })
 export class CategoriesModule {}

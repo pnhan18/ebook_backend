@@ -12,7 +12,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto, UpdateCategoryDto, CategoryResponseDto } from './dto';
 import { PaginationQueryDto } from '../common';
@@ -27,11 +27,15 @@ import {
   ApiNotFoundResponse,
   ApiConflictResponse,
 } from 'src/common/decorators';
+import { CategoriesSearchService } from './search/categories-search.service';
 
 @ApiTags('Categories')
 @Controller('categories')
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
+  constructor(
+    private readonly categoriesService: CategoriesService,
+    private readonly categoriesSearchService: CategoriesSearchService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -52,6 +56,19 @@ export class CategoriesController {
   @ApiPaginatedResponse(CategoryResponseDto)
   findAll(@Query() query: PaginationQueryDto) {
     return this.categoriesService.findAll(query);
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search categories' })
+  @ApiQuery({ name: 'q', required: true, description: 'Search query' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  search(
+    @Query('q') query: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.categoriesSearchService.search(query, { page, limit });
   }
 
   @Get(':id')

@@ -1,7 +1,11 @@
 import { PrismaClient, SignupMethod } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { Client } from '@elastic/elasticsearch';
 
 const prisma = new PrismaClient();
+const esClient = new Client({
+  node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
+});
 
 async function main() {
   console.log('🌱 Starting seed...');
@@ -24,93 +28,22 @@ async function main() {
 
   // Seed Categories
   const categories = [
-    {
-      name: 'Văn học',
-      slug: 'van-hoc',
-      description: 'Các tác phẩm văn học kinh điển và hiện đại',
-      children: [
-        { name: 'Tiểu thuyết', slug: 'tieu-thuyet', description: 'Truyện dài hư cấu' },
-        { name: 'Truyện ngắn', slug: 'truyen-ngan', description: 'Tập truyện ngắn' },
-        { name: 'Thơ', slug: 'tho', description: 'Tuyển tập thơ ca' },
-      ],
-    },
-    {
-      name: 'Khoa học',
-      slug: 'khoa-hoc',
-      description: 'Sách khoa học phổ thông và chuyên sâu',
-      children: [
-        { name: 'Vật lý', slug: 'vat-ly', description: 'Khám phá vũ trụ và vật chất' },
-        { name: 'Sinh học', slug: 'sinh-hoc', description: 'Thế giới sự sống' },
-        { name: 'Thiên văn học', slug: 'thien-van-hoc', description: 'Khám phá vũ trụ' },
-      ],
-    },
-    {
-      name: 'Kinh tế - Kinh doanh',
-      slug: 'kinh-te-kinh-doanh',
-      description: 'Sách về kinh tế, tài chính và quản trị',
-      children: [
-        { name: 'Quản trị', slug: 'quan-tri', description: 'Kỹ năng lãnh đạo và quản lý' },
-        { name: 'Đầu tư', slug: 'dau-tu', description: 'Chiến lược đầu tư tài chính' },
-        { name: 'Khởi nghiệp', slug: 'khoi-nghiep', description: 'Hướng dẫn khởi nghiệp' },
-      ],
-    },
-    {
-      name: 'Tâm lý - Kỹ năng sống',
-      slug: 'tam-ly-ky-nang-song',
-      description: 'Phát triển bản thân và kỹ năng mềm',
-      children: [
-        { name: 'Tâm lý học', slug: 'tam-ly-hoc', description: 'Hiểu về tâm lý con người' },
-        { name: 'Phát triển bản thân', slug: 'phat-trien-ban-than', description: 'Hoàn thiện chính mình' },
-        { name: 'Giao tiếp', slug: 'giao-tiep', description: 'Nghệ thuật giao tiếp' },
-      ],
-    },
-    {
-      name: 'Lịch sử',
-      slug: 'lich-su',
-      description: 'Khám phá lịch sử thế giới và Việt Nam',
-      children: [
-        { name: 'Lịch sử Việt Nam', slug: 'lich-su-viet-nam', description: 'Lịch sử dân tộc' },
-        { name: 'Lịch sử thế giới', slug: 'lich-su-the-gioi', description: 'Lịch sử các nền văn minh' },
-        { name: 'Nhân vật lịch sử', slug: 'nhan-vat-lich-su', description: 'Tiểu sử các nhân vật nổi tiếng' },
-      ],
-    },
-    {
-      name: 'Công nghệ',
-      slug: 'cong-nghe',
-      description: 'Sách về công nghệ và lập trình',
-      children: [
-        { name: 'Lập trình', slug: 'lap-trinh', description: 'Học lập trình từ cơ bản đến nâng cao' },
-        { name: 'Trí tuệ nhân tạo', slug: 'tri-tue-nhan-tao', description: 'AI và Machine Learning' },
-        { name: 'Blockchain', slug: 'blockchain', description: 'Công nghệ chuỗi khối' },
-      ],
-    },
+    { name: 'Văn học', slug: 'van-hoc', description: 'Các tác phẩm văn học kinh điển và hiện đại' },
+    { name: 'Khoa học', slug: 'khoa-hoc', description: 'Sách khoa học phổ thông và chuyên sâu' },
+    { name: 'Kinh tế - Kinh doanh', slug: 'kinh-te-kinh-doanh', description: 'Sách về kinh tế, tài chính và quản trị' },
+    { name: 'Tâm lý - Kỹ năng sống', slug: 'tam-ly-ky-nang-song', description: 'Phát triển bản thân và kỹ năng mềm' },
+    { name: 'Lịch sử', slug: 'lich-su', description: 'Khám phá lịch sử thế giới và Việt Nam' },
+    { name: 'Công nghệ', slug: 'cong-nghe', description: 'Sách về công nghệ và lập trình' },
+    { name: 'Thiếu nhi', slug: 'thieu-nhi', description: 'Sách dành cho trẻ em và thiếu niên' },
+    { name: 'Ngoại ngữ', slug: 'ngoai-ngu', description: 'Sách học ngoại ngữ' },
   ];
 
   for (const cat of categories) {
-    const parent = await prisma.category.upsert({
+    await prisma.category.upsert({
       where: { slug: cat.slug },
       update: {},
-      create: {
-        name: cat.name,
-        slug: cat.slug,
-        description: cat.description,
-      },
+      create: cat,
     });
-
-    if (cat.children) {
-      for (const child of cat.children) {
-        await prisma.category.upsert({
-          where: { slug: child.slug },
-          update: {},
-          create: {
-            name: child.name,
-            slug: child.slug,
-            description: child.description,
-            parentId: parent.id,
-          },
-        });
-      }
-    }
   }
 
   console.log('✅ Categories seeded');
@@ -253,7 +186,82 @@ async function main() {
   }
 
   console.log('✅ Users seeded');
+
+  // Sync Categories to Elasticsearch
+  await syncCategoriesToElasticsearch();
+
   console.log('🎉 Seed completed successfully!');
+}
+
+async function syncCategoriesToElasticsearch() {
+  const indexName = 'categories';
+
+  try {
+    // Check if ES is available
+    await esClient.ping();
+
+    // Delete index if exists
+    const indexExists = await esClient.indices.exists({ index: indexName });
+    if (indexExists) {
+      await esClient.indices.delete({ index: indexName });
+    }
+
+    // Create index with mappings
+    await esClient.indices.create({
+      index: indexName,
+      settings: {
+        analysis: {
+          analyzer: {
+            vietnamese: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding'],
+            },
+          },
+        },
+      },
+      mappings: {
+        properties: {
+          id: { type: 'integer' },
+          name: {
+            type: 'text',
+            analyzer: 'vietnamese',
+            fields: { keyword: { type: 'keyword' } },
+          },
+          slug: { type: 'keyword' },
+          description: { type: 'text', analyzer: 'vietnamese' },
+          parentId: { type: 'integer' },
+          isActive: { type: 'boolean' },
+          createdAt: { type: 'date' },
+        },
+      },
+    });
+
+    // Get all categories from DB
+    const categories = await prisma.category.findMany();
+
+    if (categories.length > 0) {
+      // Bulk index
+      const operations = categories.flatMap((cat) => [
+        { index: { _index: indexName, _id: cat.id.toString() } },
+        {
+          id: cat.id,
+          name: cat.name,
+          slug: cat.slug,
+          description: cat.description,
+          parentId: cat.parentId,
+          isActive: cat.isActive,
+          createdAt: cat.createdAt,
+        },
+      ]);
+
+      await esClient.bulk({ operations });
+    }
+
+    console.log('✅ Categories synced to Elasticsearch');
+  } catch (error) {
+    console.warn('⚠️ Elasticsearch sync skipped (ES not available):', (error as Error).message);
+  }
 }
 
 main()
