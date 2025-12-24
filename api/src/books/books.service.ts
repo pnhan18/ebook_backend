@@ -10,6 +10,13 @@ import { QueueService } from 'src/queue/queue.service';
 import { CreateBookDto, UpdateBookDto, AdminQueryBookDto, PublicQueryBookDto } from './dto';
 import { PaginatedResponseDto, generateSlug, StorageUrlHelper } from '../common';
 
+// Access type enum (matches Prisma BookAccessType)
+export enum AccessType {
+  FREE = 'FREE',
+  PURCHASE = 'PURCHASE',
+  MEMBERSHIP = 'MEMBERSHIP',
+}
+
 @Injectable()
 export class BooksService {
   private readonly urlHelper: StorageUrlHelper;
@@ -42,6 +49,31 @@ export class BooksService {
     return slug;
   }
 
+  /**
+   * Calculate access type based on price and chapters
+   */
+  calculateAccessType(book: {
+    price?: number | null | { toNumber?: () => number };
+    totalChapters?: number;
+    freeChapters?: number;
+  }): AccessType {
+    const price =
+      typeof book.price === 'object' && book.price?.toNumber
+        ? book.price.toNumber()
+        : Number(book.price) || 0;
+
+    const totalChapters = book.totalChapters ?? 0;
+    const freeChapters = book.freeChapters ?? 0;
+
+    if (price > 0) {
+      return AccessType.PURCHASE;
+    }
+    if (freeChapters >= totalChapters || totalChapters === 0) {
+      return AccessType.FREE;
+    }
+    return AccessType.MEMBERSHIP;
+  }
+
   async create(createBookDto: CreateBookDto): Promise<Book> {
     const slug =
       createBookDto.slug || (await this.generateUniqueSlug(createBookDto.title));
@@ -55,10 +87,18 @@ export class BooksService {
 
     const { categoryIds, authorIds, ...bookData } = createBookDto;
 
+    // Calculate accessType (totalChapters defaults to 0 for new books)
+    const accessType = this.calculateAccessType({
+      price: bookData.price,
+      totalChapters: 0,
+      freeChapters: bookData.freeChapters ?? 0,
+    });
+
     const book = await this.booksRepository.create({
       ...bookData,
       slug,
-    });
+      accessType: accessType,
+    } as any);
 
     if (categoryIds?.length) {
       await this.booksRepository.setCategories(book.id, categoryIds);
@@ -81,13 +121,23 @@ export class BooksService {
   async findAllPublic(query: PublicQueryBookDto): Promise<PaginatedResponseDto<Book>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
+
+    // If price filter is set, automatically filter purchase books only
+    const hasPriceFilter = query.minPrice !== undefined || query.maxPrice !== undefined;
+
     const { data, total } = await this.booksRepository.findAllPublic({
       page,
       limit,
       search: query.search,
-      categoryId: query.categoryId,
-      authorId: query.authorId,
+      categorySlugs: query.category,
+      authorSlugs: query.author,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      accessType: hasPriceFilter ? 'PURCHASE' : query.accessType?.toUpperCase(),
+      minPrice: query.minPrice,
+      maxPrice: query.maxPrice,
     });
+
     const transformedData = await this.transformBooksUrls(data);
     return new PaginatedResponseDto(transformedData, total, page, limit);
   }
@@ -103,6 +153,8 @@ export class BooksService {
       isActive: query.isActive,
       categoryId: query.categoryId,
       authorId: query.authorId,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
     });
     const transformedData = await this.transformBooksUrls(data);
     return new PaginatedResponseDto(transformedData, total, page, limit);
@@ -141,7 +193,7 @@ export class BooksService {
   }
 
   async update(id: number, updateBookDto: UpdateBookDto): Promise<Book> {
-    await this.findOne(id);
+    const existingBook = await this.findOne(id);
 
     if (updateBookDto.slug) {
       const existing = await this.booksRepository.findBySlug(updateBookDto.slug);
@@ -151,6 +203,19 @@ export class BooksService {
     }
 
     const { categoryIds, authorIds, ...bookData } = updateBookDto;
+
+    // Recalculate accessType if relevant fields changed
+    const needsAccessTypeUpdate =
+      bookData.price !== undefined || bookData.freeChapters !== undefined;
+
+    if (needsAccessTypeUpdate) {
+      const accessType = this.calculateAccessType({
+        price: bookData.price ?? existingBook.price,
+        totalChapters: existingBook.totalChapters,
+        freeChapters: bookData.freeChapters ?? existingBook.freeChapters,
+      });
+      (bookData as any).accessType = accessType;
+    }
 
     await this.booksRepository.update(id, bookData);
 

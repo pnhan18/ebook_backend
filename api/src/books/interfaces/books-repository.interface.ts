@@ -8,6 +8,13 @@ export interface FindAllOptions {
   isActive?: boolean;
   categoryId?: number;
   authorId?: number;
+  categorySlugs?: string[];
+  authorSlugs?: string[];
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  accessType?: string;
+  minPrice?: number;
+  maxPrice?: number;
 }
 
 export interface FindAllResult {

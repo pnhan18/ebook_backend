@@ -115,11 +115,6 @@ export class BooksRepository implements IBooksRepository {
       };
     }
 
-    // Free books filter (deprecated, use accessType)
-    if (options.isFree === true) {
-      (baseWhere as any).accessType = 'FREE';
-    }
-
     // Access type filter
     if (options.accessType) {
       (baseWhere as any).accessType = options.accessType;

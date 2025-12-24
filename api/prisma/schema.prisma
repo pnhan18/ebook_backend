@@ -34,6 +34,12 @@ enum BookStatus {
   FAILED
 }
 
+enum BookAccessType {
+  FREE
+  PURCHASE
+  MEMBERSHIP
+}
+
 enum BannerPosition {
   HOME_SLIDER
   HOME_POPUP
@@ -136,6 +142,7 @@ model Book {
   totalChapters Int            @default(0)
   freeChapters  Int            @default(0)
   price         Decimal?       @db.Decimal(10, 2)
+  accessType    BookAccessType @default(FREE)
   requireLogin  Boolean        @default(false)
   status        BookStatus     @default(DRAFT)
   isActive      Boolean        @default(true)
@@ -151,6 +158,7 @@ model Book {
   @@index([status])
   @@index([isActive])
   @@index([viewCount])
+  @@index([accessType])
   @@map("books")
 }
 
