@@ -4,11 +4,13 @@ import { AuthorsController } from './authors.controller';
 import { AuthorsRepository } from './repositories/authors.repository';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StorageModule } from 'src/storage/storage.module';
+import { SearchModule } from '../search/search.module';
+import { AuthorsSearchService } from './search/authors-search.service';
 
 @Module({
-  imports: [PrismaModule, StorageModule],
-  providers: [AuthorsService, AuthorsRepository],
+  imports: [PrismaModule, StorageModule, SearchModule],
+  providers: [AuthorsService, AuthorsRepository, AuthorsSearchService],
   controllers: [AuthorsController],
-  exports: [AuthorsService],
+  exports: [AuthorsService, AuthorsSearchService],
 })
 export class AuthorsModule {}

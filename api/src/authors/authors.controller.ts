@@ -12,7 +12,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { AuthorsService } from './authors.service';
 import { CreateAuthorDto, UpdateAuthorDto, AuthorResponseDto } from './dto';
 import { PaginationQueryDto } from '../common';
@@ -27,11 +27,15 @@ import {
   ApiNotFoundResponse,
   ApiConflictResponse,
 } from 'src/common/decorators';
+import { AuthorsSearchService } from './search/authors-search.service';
 
 @ApiTags('Authors')
 @Controller('authors')
 export class AuthorsController {
-  constructor(private readonly authorsService: AuthorsService) {}
+  constructor(
+    private readonly authorsService: AuthorsService,
+    private readonly authorsSearchService: AuthorsSearchService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -52,6 +56,19 @@ export class AuthorsController {
   @ApiPaginatedResponse(AuthorResponseDto)
   findAll(@Query() query: PaginationQueryDto) {
     return this.authorsService.findAll(query);
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search authors' })
+  @ApiQuery({ name: 'q', required: true, description: 'Search query' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  search(
+    @Query('q') query: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.authorsSearchService.search(query, { page, limit });
   }
 
   @Get(':id')

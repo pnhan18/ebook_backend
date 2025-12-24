@@ -4,6 +4,7 @@ import { AuthorsRepository } from './repositories/authors.repository';
 import { StorageService } from 'src/storage/storage.service';
 import { CreateAuthorDto, UpdateAuthorDto } from './dto';
 import { PaginationQueryDto, PaginatedResponseDto, generateSlug, StorageUrlHelper } from '../common';
+import { AuthorsSearchService } from './search/authors-search.service';
 
 @Injectable()
 export class AuthorsService {
@@ -12,6 +13,7 @@ export class AuthorsService {
   constructor(
     private readonly authorsRepository: AuthorsRepository,
     private readonly storageService: StorageService,
+    private readonly authorsSearchService: AuthorsSearchService,
   ) {
     this.urlHelper = new StorageUrlHelper(storageService);
   }
@@ -46,7 +48,9 @@ export class AuthorsService {
       }
     }
 
-    return this.authorsRepository.create({ ...createAuthorDto, slug });
+    const author = await this.authorsRepository.create({ ...createAuthorDto, slug });
+    await this.authorsSearchService.indexAuthor(author);
+    return author;
   }
 
   async findAll(query: PaginationQueryDto): Promise<PaginatedResponseDto<Author>> {
@@ -83,11 +87,15 @@ export class AuthorsService {
       }
     }
 
-    return this.authorsRepository.update(id, updateAuthorDto);
+    const author = await this.authorsRepository.update(id, updateAuthorDto);
+    await this.authorsSearchService.updateAuthor(author);
+    return author;
   }
 
   async remove(id: number): Promise<Author> {
     await this.findOne(id);
-    return this.authorsRepository.delete(id);
+    const author = await this.authorsRepository.delete(id);
+    await this.authorsSearchService.deleteAuthor(id);
+    return author;
   }
 }

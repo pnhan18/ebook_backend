@@ -190,6 +190,9 @@ async function main() {
   // Sync Categories to Elasticsearch
   await syncCategoriesToElasticsearch();
 
+  // Sync Authors to Elasticsearch
+  await syncAuthorsToElasticsearch();
+
   console.log('🎉 Seed completed successfully!');
 }
 
@@ -259,6 +262,77 @@ async function syncCategoriesToElasticsearch() {
     }
 
     console.log('✅ Categories synced to Elasticsearch');
+  } catch (error) {
+    console.warn('⚠️ Elasticsearch sync skipped (ES not available):', (error as Error).message);
+  }
+}
+
+async function syncAuthorsToElasticsearch() {
+  const indexName = 'authors';
+
+  try {
+    // Check if ES is available
+    await esClient.ping();
+
+    // Delete index if exists
+    const indexExists = await esClient.indices.exists({ index: indexName });
+    if (indexExists) {
+      await esClient.indices.delete({ index: indexName });
+    }
+
+    // Create index with mappings
+    await esClient.indices.create({
+      index: indexName,
+      settings: {
+        analysis: {
+          analyzer: {
+            vietnamese: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding'],
+            },
+          },
+        },
+      },
+      mappings: {
+        properties: {
+          id: { type: 'integer' },
+          name: {
+            type: 'text',
+            analyzer: 'vietnamese',
+            fields: { keyword: { type: 'keyword' } },
+          },
+          slug: { type: 'keyword' },
+          bio: { type: 'text', analyzer: 'vietnamese' },
+          avatar: { type: 'keyword' },
+          isActive: { type: 'boolean' },
+          createdAt: { type: 'date' },
+        },
+      },
+    });
+
+    // Get all authors from DB
+    const authors = await prisma.author.findMany();
+
+    if (authors.length > 0) {
+      // Bulk index
+      const operations = authors.flatMap((author) => [
+        { index: { _index: indexName, _id: author.id.toString() } },
+        {
+          id: author.id,
+          name: author.name,
+          slug: author.slug,
+          bio: author.bio,
+          avatar: author.avatar,
+          isActive: author.isActive,
+          createdAt: author.createdAt,
+        },
+      ]);
+
+      await esClient.bulk({ operations });
+    }
+
+    console.log('✅ Authors synced to Elasticsearch');
   } catch (error) {
     console.warn('⚠️ Elasticsearch sync skipped (ES not available):', (error as Error).message);
   }
