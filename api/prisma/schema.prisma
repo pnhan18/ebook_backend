@@ -65,6 +65,7 @@ model User {
   updatedAt              DateTime         @updatedAt
   roles                  UserRole[]
   bookViews              BookView[]
+  favorites              Favorite[]
 
   @@index([email])
   @@index([username])
@@ -153,6 +154,7 @@ model Book {
   authors       BookAuthor[]
   chapters      Chapter[]
   views         BookView[]
+  favorites     Favorite[]
 
   @@index([slug])
   @@index([status])
@@ -244,4 +246,20 @@ model BookView {
   @@index([viewedAt])
   @@index([bookId, ipAddress])
   @@map("book_views")
+}
+
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId    Int
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@index([createdAt])
+  @@map("favorites")
 }
