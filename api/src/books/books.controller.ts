@@ -32,6 +32,8 @@ import {
 } from 'src/common/decorators';
 import type { AuthenticatedUser } from 'src/common';
 import { BooksSearchService } from './search/books-search.service';
+import { FavoritesService } from '../favorites/favorites.service';
+import { FavoriteResponseDto, FavoriteStatusResponseDto } from '../favorites/dto';
 
 @ApiTags('Books')
 @Controller('books')
@@ -39,6 +41,7 @@ export class BooksController {
   constructor(
     private readonly booksService: BooksService,
     private readonly booksSearchService: BooksSearchService,
+    private readonly favoritesService: FavoritesService,
   ) {}
 
   @Get()
@@ -83,6 +86,47 @@ export class BooksController {
   @ApiSuccessArrayResponse(BookMinimalResponseDto)
   findLatest(@Query('limit', new ParseIntPipe({ optional: true })) limit?: number) {
     return this.booksService.findLatest(limit || 10);
+  }
+
+  @Post(':bookId/favorite')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Add book to favorites' })
+  @ApiSuccessResponse(FavoriteResponseDto, 201, 'Book added to favorites')
+  @ApiUnauthorizedResponse()
+  @ApiConflictResponse('Book already in favorites')
+  addFavorite(
+    @CurrentUser('id') userId: number,
+    @Param('bookId', ParseIntPipe) bookId: number,
+  ) {
+    return this.favoritesService.add(userId, bookId);
+  }
+
+  @Delete(':bookId/favorite')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove book from favorites' })
+  @ApiUnauthorizedResponse()
+  @ApiNotFoundResponse('Favorite not found')
+  removeFavorite(
+    @CurrentUser('id') userId: number,
+    @Param('bookId', ParseIntPipe) bookId: number,
+  ) {
+    return this.favoritesService.remove(userId, bookId);
+  }
+
+  @Get(':bookId/favorite')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Check if book is favorited and get total favorites count' })
+  @ApiSuccessResponse(FavoriteStatusResponseDto)
+  @ApiUnauthorizedResponse()
+  getFavoriteStatus(
+    @CurrentUser('id') userId: number,
+    @Param('bookId', ParseIntPipe) bookId: number,
+  ) {
+    return this.favoritesService.getStatus(userId, bookId);
   }
 
   @Get(':slug')
