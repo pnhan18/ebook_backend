@@ -66,6 +66,7 @@ model User {
   roles                  UserRole[]
   bookViews              BookView[]
   favorites              Favorite[]
+  ratings                Rating[]
 
   @@index([email])
   @@index([username])
@@ -148,6 +149,8 @@ model Book {
   status        BookStatus     @default(DRAFT)
   isActive      Boolean        @default(true)
   viewCount     Int            @default(0)
+  averageRating Float          @default(0)
+  ratingCount   Int            @default(0)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   categories    BookCategory[]
@@ -155,12 +158,14 @@ model Book {
   chapters      Chapter[]
   views         BookView[]
   favorites     Favorite[]
+  ratings       Rating[]
 
   @@index([slug])
   @@index([status])
   @@index([isActive])
   @@index([viewCount])
   @@index([accessType])
+  @@index([averageRating])
   @@map("books")
 }
 
@@ -262,4 +267,23 @@ model Favorite {
   @@index([bookId])
   @@index([createdAt])
   @@map("favorites")
+}
+
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId    Int
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  score     Int      // 1-5 stars
+  review    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@index([score])
+  @@map("ratings")
 }
