@@ -13,7 +13,7 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { BooksService } from './books.service';
 import { CreateBookDto, UpdateBookDto, AdminQueryBookDto, PublicQueryBookDto, BookResponseDto, BookMinimalResponseDto } from './dto';
@@ -31,17 +31,34 @@ import {
   ApiConflictResponse,
 } from 'src/common/decorators';
 import type { AuthenticatedUser } from 'src/common';
+import { BooksSearchService } from './search/books-search.service';
 
 @ApiTags('Books')
 @Controller('books')
 export class BooksController {
-  constructor(private readonly booksService: BooksService) {}
+  constructor(
+    private readonly booksService: BooksService,
+    private readonly booksSearchService: BooksSearchService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get all published books' })
   @ApiPaginatedResponse(BookResponseDto)
   findAllPublic(@Query() query: PublicQueryBookDto) {
     return this.booksService.findAllPublic(query);
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search books' })
+  @ApiQuery({ name: 'q', required: true, description: 'Search query' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  search(
+    @Query('q') query: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.booksSearchService.search(query, { page, limit });
   }
 
   @Get('popular')

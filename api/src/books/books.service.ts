@@ -9,6 +9,7 @@ import { StorageService } from 'src/storage/storage.service';
 import { QueueService } from 'src/queue/queue.service';
 import { CreateBookDto, UpdateBookDto, AdminQueryBookDto, PublicQueryBookDto } from './dto';
 import { PaginatedResponseDto, generateSlug, StorageUrlHelper } from '../common';
+import { BooksSearchService } from './search/books-search.service';
 
 // Access type enum (matches Prisma BookAccessType)
 export enum AccessType {
@@ -25,6 +26,7 @@ export class BooksService {
     private readonly booksRepository: BooksRepository,
     private readonly storageService: StorageService,
     private readonly queueService: QueueService,
+    private readonly booksSearchService: BooksSearchService,
   ) {
     this.urlHelper = new StorageUrlHelper(storageService);
   }
@@ -115,6 +117,12 @@ export class BooksService {
     }
 
     const createdBook = await this.booksRepository.findById(book.id);
+    
+    // Index to Elasticsearch
+    if (createdBook) {
+      await this.booksSearchService.indexBook(createdBook as any);
+    }
+    
     return createdBook as Book;
   }
 
@@ -228,6 +236,12 @@ export class BooksService {
     }
 
     const updatedBook = await this.booksRepository.findById(id);
+    
+    // Update in Elasticsearch
+    if (updatedBook) {
+      await this.booksSearchService.updateBook(updatedBook as any);
+    }
+    
     return updatedBook as Book;
   }
 
@@ -257,7 +271,12 @@ export class BooksService {
     // Execute all deletions in parallel
     await Promise.allSettled(deletePromises);
 
-    return this.booksRepository.delete(id);
+    const deletedBook = await this.booksRepository.delete(id);
+    
+    // Delete from Elasticsearch
+    await this.booksSearchService.deleteBook(id);
+    
+    return deletedBook;
   }
 
   async findPopular(limit = 10): Promise<Book[]> {

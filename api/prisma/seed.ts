@@ -193,6 +193,9 @@ async function main() {
   // Sync Authors to Elasticsearch
   await syncAuthorsToElasticsearch();
 
+  // Sync Books to Elasticsearch
+  await syncBooksToElasticsearch();
+
   console.log('🎉 Seed completed successfully!');
 }
 
@@ -333,6 +336,116 @@ async function syncAuthorsToElasticsearch() {
     }
 
     console.log('✅ Authors synced to Elasticsearch');
+  } catch (error) {
+    console.warn('⚠️ Elasticsearch sync skipped (ES not available):', (error as Error).message);
+  }
+}
+
+async function syncBooksToElasticsearch() {
+  const indexName = 'books';
+
+  try {
+    // Check if ES is available
+    await esClient.ping();
+
+    // Delete index if exists
+    const indexExists = await esClient.indices.exists({ index: indexName });
+    if (indexExists) {
+      await esClient.indices.delete({ index: indexName });
+    }
+
+    // Create index with mappings
+    await esClient.indices.create({
+      index: indexName,
+      settings: {
+        analysis: {
+          analyzer: {
+            vietnamese: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding'],
+            },
+          },
+        },
+      },
+      mappings: {
+        properties: {
+          id: { type: 'integer' },
+          title: {
+            type: 'text',
+            analyzer: 'vietnamese',
+            fields: { keyword: { type: 'keyword' } },
+          },
+          slug: { type: 'keyword' },
+          description: { type: 'text', analyzer: 'vietnamese' },
+          coverImage: { type: 'keyword' },
+          price: { type: 'float' },
+          status: { type: 'keyword' },
+          accessType: { type: 'keyword' },
+          isActive: { type: 'boolean' },
+          viewCount: { type: 'integer' },
+          createdAt: { type: 'date' },
+          categories: {
+            type: 'nested',
+            properties: {
+              id: { type: 'integer' },
+              name: { type: 'text', analyzer: 'vietnamese' },
+              slug: { type: 'keyword' },
+            },
+          },
+          authors: {
+            type: 'nested',
+            properties: {
+              id: { type: 'integer' },
+              name: { type: 'text', analyzer: 'vietnamese' },
+              slug: { type: 'keyword' },
+            },
+          },
+        },
+      },
+    });
+
+    // Get all books with relations from DB
+    const books = await prisma.book.findMany({
+      include: {
+        categories: { include: { category: true } },
+        authors: { include: { author: true } },
+      },
+    });
+
+    if (books.length > 0) {
+      // Bulk index
+      const operations = books.flatMap((book) => [
+        { index: { _index: indexName, _id: book.id.toString() } },
+        {
+          id: book.id,
+          title: book.title,
+          slug: book.slug,
+          description: book.description,
+          coverImage: book.coverImage,
+          price: book.price ? Number(book.price) : null,
+          status: book.status,
+          accessType: book.accessType,
+          isActive: book.isActive,
+          viewCount: book.viewCount,
+          createdAt: book.createdAt,
+          categories: book.categories.map((c) => ({
+            id: c.category.id,
+            name: c.category.name,
+            slug: c.category.slug,
+          })),
+          authors: book.authors.map((a) => ({
+            id: a.author.id,
+            name: a.author.name,
+            slug: a.author.slug,
+          })),
+        },
+      ]);
+
+      await esClient.bulk({ operations });
+    }
+
+    console.log('✅ Books synced to Elasticsearch');
   } catch (error) {
     console.warn('⚠️ Elasticsearch sync skipped (ES not available):', (error as Error).message);
   }
