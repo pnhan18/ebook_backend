@@ -16,8 +16,25 @@ export class CategoriesSearchService implements OnModuleInit {
     await this.searchService.createIndex(this.index, {
       settings: {
         analysis: {
+          filter: {
+            autocomplete_filter: {
+              type: 'edge_ngram',
+              min_gram: 1,
+              max_gram: 20,
+            },
+          },
           analyzer: {
-            vietnamese: {
+            vietnamese_standard: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding'],
+            },
+            autocomplete_index: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding', 'autocomplete_filter'],
+            },
+            autocomplete_search: {
               type: 'custom',
               tokenizer: 'standard',
               filter: ['lowercase', 'asciifolding'],
@@ -30,13 +47,23 @@ export class CategoriesSearchService implements OnModuleInit {
           id: { type: 'integer' },
           name: {
             type: 'text',
-            analyzer: 'vietnamese',
+            analyzer: 'vietnamese_standard',
             fields: {
               keyword: { type: 'keyword' },
+              autocomplete: {
+                type: 'text',
+                analyzer: 'autocomplete_index',
+                search_analyzer: 'autocomplete_search',
+              },
             },
           },
+          nameFirst: {
+            type: 'text',
+            analyzer: 'autocomplete_index',
+            search_analyzer: 'autocomplete_search',
+          },
           slug: { type: 'keyword' },
-          description: { type: 'text' },
+          description: { type: 'text', analyzer: 'vietnamese_standard' },
           parentId: { type: 'integer' },
           isActive: { type: 'boolean' },
           createdAt: { type: 'date' },
@@ -46,9 +73,12 @@ export class CategoriesSearchService implements OnModuleInit {
   }
 
   async indexCategory(category: Category) {
+    const nameFirst = category.name.split(' ')[0];
+
     return this.searchService.indexDocument(this.index, category.id.toString(), {
       id: category.id,
       name: category.name,
+      nameFirst,
       slug: category.slug,
       description: category.description,
       parentId: category.parentId,
@@ -58,8 +88,11 @@ export class CategoriesSearchService implements OnModuleInit {
   }
 
   async updateCategory(category: Category) {
+    const nameFirst = category.name.split(' ')[0];
+
     return this.searchService.updateDocument(this.index, category.id.toString(), {
       name: category.name,
+      nameFirst,
       slug: category.slug,
       description: category.description,
       parentId: category.parentId,
@@ -80,16 +113,33 @@ export class CategoriesSearchService implements OnModuleInit {
       _source: ['id', 'name', 'slug', 'description'],
       query: {
         bool: {
-          must: [
+          should: [
             {
-              multi_match: {
-                query,
-                fields: ['name^2'],
-                fuzziness: 'AUTO',
-                prefix_length: 1,
+              match: {
+                nameFirst: {
+                  query,
+                  boost: 10,
+                },
+              },
+            },
+            {
+              match: {
+                'name.autocomplete': {
+                  query,
+                  boost: 2,
+                },
+              },
+            },
+            {
+              match: {
+                name: {
+                  query,
+                  fuzziness: 'AUTO',
+                },
               },
             },
           ],
+          minimum_should_match: 1,
           filter: [{ term: { isActive: true } }],
         },
       },
@@ -111,6 +161,7 @@ export class CategoriesSearchService implements OnModuleInit {
       document: {
         id: category.id,
         name: category.name,
+        nameFirst: category.name.split(' ')[0],
         slug: category.slug,
         description: category.description,
         parentId: category.parentId,

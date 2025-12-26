@@ -20,8 +20,27 @@ export class AuthorsSearchService implements OnModuleInit {
     await this.searchService.createIndex(this.index, {
       settings: {
         analysis: {
+          filter: {
+            autocomplete_filter: {
+              type: 'edge_ngram',
+              min_gram: 1,
+              max_gram: 20,
+            },
+          },
           analyzer: {
-            vietnamese: {
+            vietnamese_standard: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding'],
+            },
+            // Index-time: tạo edge_ngram cho mỗi từ
+            autocomplete_index: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding', 'autocomplete_filter'],
+            },
+            // Search-time: không dùng edge_ngram, chỉ normalize
+            autocomplete_search: {
               type: 'custom',
               tokenizer: 'standard',
               filter: ['lowercase', 'asciifolding'],
@@ -34,13 +53,25 @@ export class AuthorsSearchService implements OnModuleInit {
           id: { type: 'integer' },
           name: {
             type: 'text',
-            analyzer: 'vietnamese',
+            analyzer: 'vietnamese_standard',
             fields: {
               keyword: { type: 'keyword' },
+              // Autocomplete cho bất kỳ từ nào
+              autocomplete: {
+                type: 'text',
+                analyzer: 'autocomplete_index',
+                search_analyzer: 'autocomplete_search',
+              },
             },
           },
+          // Field riêng để ưu tiên match từ đầu
+          nameFirst: {
+            type: 'text',
+            analyzer: 'autocomplete_index',
+            search_analyzer: 'autocomplete_search',
+          },
           slug: { type: 'keyword' },
-          bio: { type: 'text', analyzer: 'vietnamese' },
+          bio: { type: 'text', analyzer: 'vietnamese_standard' },
           avatar: { type: 'keyword' },
           isActive: { type: 'boolean' },
           createdAt: { type: 'date' },
@@ -50,9 +81,13 @@ export class AuthorsSearchService implements OnModuleInit {
   }
 
   async indexAuthor(author: Author) {
+    // Lấy từ đầu tiên của tên
+    const nameFirst = author.name.split(' ')[0];
+
     return this.searchService.indexDocument(this.index, author.id.toString(), {
       id: author.id,
       name: author.name,
+      nameFirst,
       slug: author.slug,
       bio: author.bio,
       avatar: author.avatar,
@@ -62,8 +97,11 @@ export class AuthorsSearchService implements OnModuleInit {
   }
 
   async updateAuthor(author: Author) {
+    const nameFirst = author.name.split(' ')[0];
+
     return this.searchService.updateDocument(this.index, author.id.toString(), {
       name: author.name,
+      nameFirst,
       slug: author.slug,
       bio: author.bio,
       avatar: author.avatar,
@@ -84,16 +122,34 @@ export class AuthorsSearchService implements OnModuleInit {
       _source: ['id', 'name', 'slug', 'bio', 'avatar'],
       query: {
         bool: {
-          must: [
+          should: [
             {
-              multi_match: {
-                query,
-                fields: ['name^2'],
-                fuzziness: 'AUTO',
-                prefix_length: 1,
+              match: {
+                nameFirst: {
+                  query,
+                  boost: 10,
+                },
+              },
+            },
+            {
+              match: {
+                'name.autocomplete': {
+                  query,
+                  boost: 2,
+                },
+              },
+            },
+            {
+              // Fallback fuzzy
+              match: {
+                name: {
+                  query,
+                  fuzziness: 'AUTO',
+                },
               },
             },
           ],
+          minimum_should_match: 1,
           filter: [{ term: { isActive: true } }],
         },
       },
@@ -127,6 +183,7 @@ export class AuthorsSearchService implements OnModuleInit {
       document: {
         id: author.id,
         name: author.name,
+        nameFirst: author.name.split(' ')[0],
         slug: author.slug,
         bio: author.bio,
         avatar: author.avatar,

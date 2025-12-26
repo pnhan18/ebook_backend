@@ -25,8 +25,25 @@ export class BooksSearchService implements OnModuleInit {
     await this.searchService.createIndex(this.index, {
       settings: {
         analysis: {
+          filter: {
+            autocomplete_filter: {
+              type: 'edge_ngram',
+              min_gram: 1,
+              max_gram: 20,
+            },
+          },
           analyzer: {
-            vietnamese: {
+            vietnamese_standard: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding'],
+            },
+            autocomplete_index: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding', 'autocomplete_filter'],
+            },
+            autocomplete_search: {
               type: 'custom',
               tokenizer: 'standard',
               filter: ['lowercase', 'asciifolding'],
@@ -39,11 +56,23 @@ export class BooksSearchService implements OnModuleInit {
           id: { type: 'integer' },
           title: {
             type: 'text',
-            analyzer: 'vietnamese',
-            fields: { keyword: { type: 'keyword' } },
+            analyzer: 'vietnamese_standard',
+            fields: {
+              keyword: { type: 'keyword' },
+              autocomplete: {
+                type: 'text',
+                analyzer: 'autocomplete_index',
+                search_analyzer: 'autocomplete_search',
+              },
+            },
+          },
+          titleFirst: {
+            type: 'text',
+            analyzer: 'autocomplete_index',
+            search_analyzer: 'autocomplete_search',
           },
           slug: { type: 'keyword' },
-          description: { type: 'text', analyzer: 'vietnamese' },
+          description: { type: 'text', analyzer: 'vietnamese_standard' },
           coverImage: { type: 'keyword' },
           price: { type: 'float' },
           status: { type: 'keyword' },
@@ -55,7 +84,7 @@ export class BooksSearchService implements OnModuleInit {
             type: 'nested',
             properties: {
               id: { type: 'integer' },
-              name: { type: 'text', analyzer: 'vietnamese' },
+              name: { type: 'text', analyzer: 'vietnamese_standard' },
               slug: { type: 'keyword' },
             },
           },
@@ -63,7 +92,7 @@ export class BooksSearchService implements OnModuleInit {
             type: 'nested',
             properties: {
               id: { type: 'integer' },
-              name: { type: 'text', analyzer: 'vietnamese' },
+              name: { type: 'text', analyzer: 'vietnamese_standard' },
               slug: { type: 'keyword' },
             },
           },
@@ -72,11 +101,13 @@ export class BooksSearchService implements OnModuleInit {
     });
   }
 
-
   async indexBook(book: BookWithRelations) {
+    const titleFirst = book.title.split(' ')[0];
+
     return this.searchService.indexDocument(this.index, book.id.toString(), {
       id: book.id,
       title: book.title,
+      titleFirst,
       slug: book.slug,
       description: book.description,
       coverImage: book.coverImage,
@@ -92,8 +123,11 @@ export class BooksSearchService implements OnModuleInit {
   }
 
   async updateBook(book: BookWithRelations) {
+    const titleFirst = book.title.split(' ')[0];
+
     return this.searchService.updateDocument(this.index, book.id.toString(), {
       title: book.title,
+      titleFirst,
       slug: book.slug,
       description: book.description,
       coverImage: book.coverImage,
@@ -120,39 +154,50 @@ export class BooksSearchService implements OnModuleInit {
       _source: ['id', 'title', 'slug', 'coverImage', 'price', 'accessType', 'authors'],
       query: {
         bool: {
-          must: [
+          should: [
             {
-              bool: {
-                should: [
-                  {
-                    multi_match: {
-                      query,
-                      fields: ['title^3'],
-                      fuzziness: 'AUTO',
-                      prefix_length: 1,
-                    },
-                  },
-                  {
-                    nested: {
-                      path: 'authors',
-                      query: {
-                        match: { 'authors.name': { query, fuzziness: 'AUTO' } },
-                      },
-                    },
-                  },
-                  {
-                    nested: {
-                      path: 'categories',
-                      query: {
-                        match: { 'categories.name': { query, fuzziness: 'AUTO' } },
-                      },
-                    },
-                  },
-                ],
-                minimum_should_match: 1,
+              match: {
+                titleFirst: {
+                  query,
+                  boost: 10,
+                },
+              },
+            },
+            {
+              match: {
+                'title.autocomplete': {
+                  query,
+                  boost: 3,
+                },
+              },
+            },
+            {
+              match: {
+                title: {
+                  query,
+                  fuzziness: 'AUTO',
+                  boost: 2,
+                },
+              },
+            },
+            {
+              nested: {
+                path: 'authors',
+                query: {
+                  match: { 'authors.name': { query, fuzziness: 'AUTO' } },
+                },
+              },
+            },
+            {
+              nested: {
+                path: 'categories',
+                query: {
+                  match: { 'categories.name': { query, fuzziness: 'AUTO' } },
+                },
               },
             },
           ],
+          minimum_should_match: 1,
           filter: [
             { term: { isActive: true } },
             { term: { status: 'PUBLISHED' } },
@@ -189,9 +234,11 @@ export class BooksSearchService implements OnModuleInit {
       document: {
         id: book.id,
         title: book.title,
+        titleFirst: book.title.split(' ')[0],
         slug: book.slug,
         description: book.description,
         coverImage: book.coverImage,
+        price: book.price ? Number(book.price) : null,
         status: book.status,
         accessType: book.accessType,
         isActive: book.isActive,
