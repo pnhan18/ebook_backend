@@ -30,10 +30,19 @@ import {
   ApiNotFoundResponse,
   ApiConflictResponse,
 } from 'src/common/decorators';
-import type { AuthenticatedUser } from 'src/common';
+import type { AuthenticatedUser, PaginationQueryDto } from 'src/common';
 import { BooksSearchService } from './search/books-search.service';
 import { FavoritesService } from '../favorites/favorites.service';
 import { FavoriteResponseDto, FavoriteStatusResponseDto } from '../favorites/dto';
+import { RatingsService } from '../ratings/ratings.service';
+import {
+  CreateRatingDto,
+  UpdateRatingDto,
+  RatingResponseDto,
+  RatingWithUserResponseDto,
+  RatingStatsResponseDto,
+  RatingSummaryResponseDto,
+} from '../ratings/dto';
 
 @ApiTags('Books')
 @Controller('books')
@@ -42,6 +51,7 @@ export class BooksController {
     private readonly booksService: BooksService,
     private readonly booksSearchService: BooksSearchService,
     private readonly favoritesService: FavoritesService,
+    private readonly ratingsService: RatingsService,
   ) {}
 
   @Get()
@@ -127,6 +137,79 @@ export class BooksController {
     @Param('bookId', ParseIntPipe) bookId: number,
   ) {
     return this.favoritesService.getStatus(userId, bookId);
+  }
+
+  @Post(':bookId/rating')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Rate a book' })
+  @ApiSuccessResponse(RatingResponseDto, 201, 'Rating created')
+  @ApiUnauthorizedResponse()
+  @ApiConflictResponse('You have already rated this book')
+  createRating(
+    @CurrentUser('id') userId: number,
+    @Param('bookId', ParseIntPipe) bookId: number,
+    @Body() dto: CreateRatingDto,
+  ) {
+    return this.ratingsService.create(userId, bookId, dto);
+  }
+
+  @Patch(':bookId/rating')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update your rating' })
+  @ApiSuccessResponse(RatingResponseDto)
+  @ApiUnauthorizedResponse()
+  @ApiNotFoundResponse('Rating not found')
+  updateRating(
+    @CurrentUser('id') userId: number,
+    @Param('bookId', ParseIntPipe) bookId: number,
+    @Body() dto: UpdateRatingDto,
+  ) {
+    return this.ratingsService.update(userId, bookId, dto);
+  }
+
+  @Delete(':bookId/rating')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete your rating' })
+  @ApiUnauthorizedResponse()
+  @ApiNotFoundResponse('Rating not found')
+  deleteRating(
+    @CurrentUser('id') userId: number,
+    @Param('bookId', ParseIntPipe) bookId: number,
+  ) {
+    return this.ratingsService.remove(userId, bookId);
+  }
+
+  @Get(':bookId/rating')
+  @UseGuards(JwtOptionalGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get book rating stats and current user rating' })
+  @ApiSuccessResponse(RatingStatsResponseDto)
+  getRatingStats(
+    @CurrentUser('id') userId: number | undefined,
+    @Param('bookId', ParseIntPipe) bookId: number,
+  ) {
+    return this.ratingsService.getStats(userId ?? null, bookId);
+  }
+
+  @Get(':bookId/rating/summary')
+  @ApiOperation({ summary: 'Get book rating summary with distribution' })
+  @ApiSuccessResponse(RatingSummaryResponseDto)
+  getRatingSummary(@Param('bookId', ParseIntPipe) bookId: number) {
+    return this.ratingsService.getSummary(bookId);
+  }
+
+  @Get(':bookId/ratings')
+  @ApiOperation({ summary: 'Get all ratings of a book' })
+  @ApiPaginatedResponse(RatingWithUserResponseDto)
+  getBookRatings(
+    @Param('bookId', ParseIntPipe) bookId: number,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.ratingsService.findAllByBook(bookId, query);
   }
 
   @Get(':slug')

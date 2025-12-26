@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { Book, BookStatus } from '@prisma/client';
 import { BooksRepository } from './repositories/books.repository';
 import { StorageService } from 'src/storage/storage.service';
@@ -10,6 +11,7 @@ import { QueueService } from 'src/queue/queue.service';
 import { CreateBookDto, UpdateBookDto, AdminQueryBookDto, PublicQueryBookDto } from './dto';
 import { PaginatedResponseDto, generateSlug, StorageUrlHelper } from '../common';
 import { BooksSearchService } from './search/books-search.service';
+import { RatingChangedEvent } from '../ratings/events/rating.events';
 
 // Access type enum (matches Prisma BookAccessType)
 export enum AccessType {
@@ -293,5 +295,17 @@ export class BooksService {
   async findLatest(limit = 10): Promise<Book[]> {
     const books = await this.booksRepository.findLatest(limit);
     return this.transformBooksUrls(books);
+  }
+
+  async updateRatingStats(bookId: number, averageRating: number, ratingCount: number): Promise<void> {
+    await this.booksRepository.update(bookId, { averageRating, ratingCount });
+  }
+
+  @OnEvent('rating.changed')
+  async handleRatingChanged(event: RatingChangedEvent): Promise<void> {
+    await this.booksRepository.update(event.bookId, {
+      averageRating: event.averageRating,
+      ratingCount: event.ratingCount,
+    });
   }
 }

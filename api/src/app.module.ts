@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -15,12 +16,14 @@ import { ChaptersModule } from './chapters/chapters.module';
 import { BannersModule } from './banners/banners.module';
 import { SearchModule } from './search/search.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { RatingsModule } from './ratings/ratings.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    EventEmitterModule.forRoot(),
     PrismaModule,
     StorageModule,
     QueueModule,
@@ -34,6 +37,7 @@ import { FavoritesModule } from './favorites/favorites.module';
     BannersModule,
     SearchModule,
     FavoritesModule,
+    RatingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
