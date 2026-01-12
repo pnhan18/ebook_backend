@@ -15,6 +15,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     this.connection = await connect(url);
     this.channel = await this.connection.createChannel();
     await this.channel.assertQueue('books', { durable: true });
+    await this.channel.assertQueue('recommendations', { durable: true });
   }
 
   async onModuleDestroy() {
@@ -56,5 +57,17 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
   async publishBookProcessing(bookId: number, sourceKey: string): Promise<void> {
     this.sendCeleryTask('books', 'src.tasks.book_tasks.process_book', [bookId, sourceKey]);
+  }
+
+  async publishRecommendationTask(taskName: string, args: unknown[]): Promise<void> {
+    this.sendCeleryTask('recommendations', `src.tasks.recommendation_tasks.${taskName}`, args);
+  }
+
+  async publishUserRecommendation(userId: number): Promise<void> {
+    this.sendCeleryTask(
+      'recommendations',
+      'src.tasks.recommendation_tasks.compute_user_recommendation',
+      [userId],
+    );
   }
 }

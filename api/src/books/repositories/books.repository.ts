@@ -5,6 +5,7 @@ import {
   IBooksRepository,
   FindAllOptions,
   FindAllResult,
+  ViewHistoryResult,
 } from '../interfaces/books-repository.interface';
 
 @Injectable()
@@ -251,7 +252,7 @@ export class BooksRepository implements IBooksRepository {
     });
 
     if (existingView) {
-      return false; // Already viewed
+      return false;
     }
 
     // Record new view and increment counter
@@ -266,6 +267,42 @@ export class BooksRepository implements IBooksRepository {
     ]);
 
     return true;
+  }
+
+  async getUserViewHistory(
+    userId: number,
+    page: number,
+    limit: number,
+  ): Promise<ViewHistoryResult> {
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.prisma.bookView.findMany({
+        where: { userId },
+        orderBy: { viewedAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          bookId: true,
+          viewedAt: true,
+          book: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              coverImage: true,
+            },
+          },
+        },
+      }),
+      this.prisma.bookView.count({ where: { userId } }),
+    ]);
+
+    return { data, total };
+  }
+
+  async getUserViewCount(userId: number): Promise<number> {
+    return this.prisma.bookView.count({ where: { userId } });
   }
 
   async getViewCount(bookId: number): Promise<number> {

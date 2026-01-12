@@ -8,6 +8,7 @@ services:
       - NODE_ENV=${NODE_ENV:-development}
       - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379/0
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
       - MAIL_HOST=${MAIL_HOST}
@@ -32,6 +33,7 @@ services:
     depends_on:
       - db
       - rabbitmq
+      - redis
 
   worker:
     build: ./worker
@@ -39,6 +41,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379/0
       - STORAGE_ENDPOINT_URL=${R2_ENDPOINT}
       - STORAGE_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
       - STORAGE_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
@@ -49,6 +52,27 @@ services:
     depends_on:
       - db
       - rabbitmq
+      - redis
+
+  worker-beat:
+    build: ./worker
+    container_name: ebook-worker-beat
+    command: celery -A src.celery_app beat -l info
+    environment:
+      - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379/0
+      - STORAGE_ENDPOINT_URL=${R2_ENDPOINT}
+      - STORAGE_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - STORAGE_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - STORAGE_BUCKET_NAME=${R2_BUCKET_NAME}
+    restart: unless-stopped
+    networks:
+      - ebook-network
+    depends_on:
+      - worker
+      - rabbitmq
+      - redis
 
   db:
     image: postgres:17-alpine
@@ -80,6 +104,18 @@ services:
       - ebook-network
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: ebook-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ebook-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: ebook-elasticsearch
@@ -104,6 +140,7 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
+  redis_data:
 
 networks:
   ebook-network:

@@ -8,7 +8,10 @@ from src.config import celery_config
 app = Celery(
     "worker",
     broker=celery_config.broker_url,
-    include=["src.tasks.book_tasks"],
+    include=[
+        "src.tasks.book_tasks",
+        "src.tasks.recommendation_tasks",
+    ],
 )
 
 app.config_from_object(celery_config)

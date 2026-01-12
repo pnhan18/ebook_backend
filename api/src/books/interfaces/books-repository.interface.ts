@@ -22,6 +22,22 @@ export interface FindAllResult {
   total: number;
 }
 
+export interface ViewHistoryItem {
+  bookId: number;
+  viewedAt: Date;
+  book: {
+    id: number;
+    title: string;
+    slug: string;
+    coverImage: string | null;
+  };
+}
+
+export interface ViewHistoryResult {
+  data: ViewHistoryItem[];
+  total: number;
+}
+
 export interface IBooksRepository {
   create(data: Prisma.BookCreateInput): Promise<Book>;
   findAll(options: FindAllOptions): Promise<FindAllResult>;
@@ -39,6 +55,12 @@ export interface IBooksRepository {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<boolean>;
+  getUserViewHistory(
+    userId: number,
+    page: number,
+    limit: number,
+  ): Promise<ViewHistoryResult>;
+  getUserViewCount(userId: number): Promise<number>;
   getViewCount(bookId: number): Promise<number>;
   findPopular(limit: number): Promise<Book[]>;
   findTrending(days: number, limit: number): Promise<Book[]>;

@@ -12,6 +12,7 @@ import { CreateBookDto, UpdateBookDto, AdminQueryBookDto, PublicQueryBookDto } f
 import { PaginatedResponseDto, generateSlug, StorageUrlHelper } from '../common';
 import { BooksSearchService } from './search/books-search.service';
 import { RatingChangedEvent } from '../ratings/events/rating.events';
+import { ViewHistoryResult } from './interfaces/books-repository.interface';
 
 // Access type enum (matches Prisma BookAccessType)
 export enum AccessType {
@@ -178,10 +179,7 @@ export class BooksService {
     return this.transformBookUrls(book);
   }
 
-  async findBySlug(
-    slug: string,
-    viewContext?: { userId?: number; ipAddress?: string; userAgent?: string },
-  ): Promise<Book> {
+  async findBySlug(slug: string): Promise<Book> {
     const book = await this.booksRepository.findBySlug(slug);
 
     // Public: only return published and active books
@@ -189,17 +187,28 @@ export class BooksService {
       throw new NotFoundException(`Book with slug "${slug}" not found`);
     }
 
-    // Record view if context provided
-    if (viewContext) {
-      await this.booksRepository.recordView(
-        book.id,
-        viewContext.userId,
-        viewContext.ipAddress,
-        viewContext.userAgent,
-      );
-    }
-
     return this.transformBookUrls(book);
+  }
+
+  async recordView(
+    bookId: number,
+    userId?: number,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    await this.booksRepository.recordView(bookId, userId, ipAddress, userAgent);
+  }
+
+  async getUserViewHistory(
+    userId: number,
+    page = 1,
+    limit = 10,
+  ): Promise<ViewHistoryResult> {
+    return this.booksRepository.getUserViewHistory(userId, page, limit);
+  }
+
+  async getUserViewCount(userId: number): Promise<number> {
+    return this.booksRepository.getUserViewCount(userId);
   }
 
   async update(id: number, updateBookDto: UpdateBookDto): Promise<Book> {

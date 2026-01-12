@@ -37,6 +37,21 @@ enum BookStatus {
   FAILED
 }
 
+enum BookAccessType {
+  FREE
+  PURCHASE
+  MEMBERSHIP
+}
+
+enum BannerPosition {
+  HOME_SLIDER
+  HOME_POPUP
+  SIDEBAR_LEFT
+  SIDEBAR_RIGHT
+  HEADER
+  FOOTER
+}
+
 model User {
   id                     Int              @id @default(autoincrement())
   email                  String           @unique
@@ -52,6 +67,9 @@ model User {
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
   roles                  UserRole[]
+  bookViews              BookView[]
+  favorites              Favorite[]
+  ratings                Rating[]
 
   @@index([email])
   @@index([username])
@@ -129,18 +147,28 @@ model Book {
   totalChapters Int            @default(0)
   freeChapters  Int            @default(0)
   price         Decimal?       @db.Decimal(10, 2)
+  accessType    BookAccessType @default(FREE)
   requireLogin  Boolean        @default(false)
   status        BookStatus     @default(DRAFT)
   isActive      Boolean        @default(true)
+  viewCount     Int            @default(0)
+  averageRating Float          @default(0)
+  ratingCount   Int            @default(0)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   categories    BookCategory[]
   authors       BookAuthor[]
   chapters      Chapter[]
+  views         BookView[]
+  favorites     Favorite[]
+  ratings       Rating[]
 
   @@index([slug])
   @@index([status])
   @@index([isActive])
+  @@index([viewCount])
+  @@index([accessType])
+  @@index([averageRating])
   @@map("books")
 }
 
@@ -188,4 +216,74 @@ model BookAuthor {
   @@index([bookId])
   @@index([authorId])
   @@map("book_authors")
+}
+
+model Banner {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String?
+  imageUrl    String
+  linkUrl     String?
+  position    BannerPosition @default(HOME_SLIDER)
+  order       Int            @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([position])
+  @@index([isActive])
+  @@index([order])
+  @@map("banners")
+}
+
+model BookView {
+  id        Int      @id @default(autoincrement())
+  bookId    Int
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress String?
+  userAgent String?
+  viewedAt  DateTime @default(now())
+
+  @@index([bookId])
+  @@index([userId])
+  @@index([viewedAt])
+  @@index([bookId, ipAddress])
+  @@map("book_views")
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId    Int
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@index([createdAt])
+  @@map("favorites")
+}
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId    Int
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  score     Int
+  review    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@index([score])
+  @@map("ratings")
 }

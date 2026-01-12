@@ -218,19 +218,19 @@ export class BooksController {
   @ApiOperation({ summary: 'Get book by slug (records view)' })
   @ApiSuccessResponse(BookResponseDto)
   @ApiNotFoundResponse('Book not found')
-  findBySlug(
+  async findBySlug(
     @Param('slug') slug: string,
     @Req() req: Request,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
+    const book = await this.booksService.findBySlug(slug);
+
+    // Record view
     const ipAddress = req.ip || req.headers['x-forwarded-for']?.toString();
     const userAgent = req.headers['user-agent'];
+    await this.booksService.recordView(book.id, user?.id, ipAddress, userAgent);
 
-    return this.booksService.findBySlug(slug, {
-      userId: user?.id,
-      ipAddress,
-      userAgent,
-    });
+    return book;
   }
 }
 

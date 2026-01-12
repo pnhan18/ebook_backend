@@ -212,13 +212,30 @@ async function syncCategoriesToElasticsearch() {
       await esClient.indices.delete({ index: indexName });
     }
 
-    // Create index with mappings
+    // Create index with mappings (edge_ngram for autocomplete)
     await esClient.indices.create({
       index: indexName,
       settings: {
         analysis: {
+          filter: {
+            autocomplete_filter: {
+              type: 'edge_ngram',
+              min_gram: 1,
+              max_gram: 20,
+            },
+          },
           analyzer: {
-            vietnamese: {
+            vietnamese_standard: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding'],
+            },
+            autocomplete_index: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding', 'autocomplete_filter'],
+            },
+            autocomplete_search: {
               type: 'custom',
               tokenizer: 'standard',
               filter: ['lowercase', 'asciifolding'],
@@ -231,11 +248,23 @@ async function syncCategoriesToElasticsearch() {
           id: { type: 'integer' },
           name: {
             type: 'text',
-            analyzer: 'vietnamese',
-            fields: { keyword: { type: 'keyword' } },
+            analyzer: 'vietnamese_standard',
+            fields: {
+              keyword: { type: 'keyword' },
+              autocomplete: {
+                type: 'text',
+                analyzer: 'autocomplete_index',
+                search_analyzer: 'autocomplete_search',
+              },
+            },
+          },
+          nameFirst: {
+            type: 'text',
+            analyzer: 'autocomplete_index',
+            search_analyzer: 'autocomplete_search',
           },
           slug: { type: 'keyword' },
-          description: { type: 'text', analyzer: 'vietnamese' },
+          description: { type: 'text', analyzer: 'vietnamese_standard' },
           parentId: { type: 'integer' },
           isActive: { type: 'boolean' },
           createdAt: { type: 'date' },
@@ -247,12 +276,13 @@ async function syncCategoriesToElasticsearch() {
     const categories = await prisma.category.findMany();
 
     if (categories.length > 0) {
-      // Bulk index
+      // Bulk index with nameFirst field
       const operations = categories.flatMap((cat) => [
         { index: { _index: indexName, _id: cat.id.toString() } },
         {
           id: cat.id,
           name: cat.name,
+          nameFirst: cat.name.split(' ')[0],
           slug: cat.slug,
           description: cat.description,
           parentId: cat.parentId,
@@ -283,13 +313,30 @@ async function syncAuthorsToElasticsearch() {
       await esClient.indices.delete({ index: indexName });
     }
 
-    // Create index with mappings
+    // Create index with mappings (edge_ngram for autocomplete)
     await esClient.indices.create({
       index: indexName,
       settings: {
         analysis: {
+          filter: {
+            autocomplete_filter: {
+              type: 'edge_ngram',
+              min_gram: 1,
+              max_gram: 20,
+            },
+          },
           analyzer: {
-            vietnamese: {
+            vietnamese_standard: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding'],
+            },
+            autocomplete_index: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding', 'autocomplete_filter'],
+            },
+            autocomplete_search: {
               type: 'custom',
               tokenizer: 'standard',
               filter: ['lowercase', 'asciifolding'],
@@ -302,11 +349,23 @@ async function syncAuthorsToElasticsearch() {
           id: { type: 'integer' },
           name: {
             type: 'text',
-            analyzer: 'vietnamese',
-            fields: { keyword: { type: 'keyword' } },
+            analyzer: 'vietnamese_standard',
+            fields: {
+              keyword: { type: 'keyword' },
+              autocomplete: {
+                type: 'text',
+                analyzer: 'autocomplete_index',
+                search_analyzer: 'autocomplete_search',
+              },
+            },
+          },
+          nameFirst: {
+            type: 'text',
+            analyzer: 'autocomplete_index',
+            search_analyzer: 'autocomplete_search',
           },
           slug: { type: 'keyword' },
-          bio: { type: 'text', analyzer: 'vietnamese' },
+          bio: { type: 'text', analyzer: 'vietnamese_standard' },
           avatar: { type: 'keyword' },
           isActive: { type: 'boolean' },
           createdAt: { type: 'date' },
@@ -318,12 +377,13 @@ async function syncAuthorsToElasticsearch() {
     const authors = await prisma.author.findMany();
 
     if (authors.length > 0) {
-      // Bulk index
+      // Bulk index with nameFirst field
       const operations = authors.flatMap((author) => [
         { index: { _index: indexName, _id: author.id.toString() } },
         {
           id: author.id,
           name: author.name,
+          nameFirst: author.name.split(' ')[0],
           slug: author.slug,
           bio: author.bio,
           avatar: author.avatar,
@@ -354,13 +414,30 @@ async function syncBooksToElasticsearch() {
       await esClient.indices.delete({ index: indexName });
     }
 
-    // Create index with mappings
+    // Create index with mappings (edge_ngram for autocomplete)
     await esClient.indices.create({
       index: indexName,
       settings: {
         analysis: {
+          filter: {
+            autocomplete_filter: {
+              type: 'edge_ngram',
+              min_gram: 1,
+              max_gram: 20,
+            },
+          },
           analyzer: {
-            vietnamese: {
+            vietnamese_standard: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding'],
+            },
+            autocomplete_index: {
+              type: 'custom',
+              tokenizer: 'standard',
+              filter: ['lowercase', 'asciifolding', 'autocomplete_filter'],
+            },
+            autocomplete_search: {
               type: 'custom',
               tokenizer: 'standard',
               filter: ['lowercase', 'asciifolding'],
@@ -373,11 +450,23 @@ async function syncBooksToElasticsearch() {
           id: { type: 'integer' },
           title: {
             type: 'text',
-            analyzer: 'vietnamese',
-            fields: { keyword: { type: 'keyword' } },
+            analyzer: 'vietnamese_standard',
+            fields: {
+              keyword: { type: 'keyword' },
+              autocomplete: {
+                type: 'text',
+                analyzer: 'autocomplete_index',
+                search_analyzer: 'autocomplete_search',
+              },
+            },
+          },
+          titleFirst: {
+            type: 'text',
+            analyzer: 'autocomplete_index',
+            search_analyzer: 'autocomplete_search',
           },
           slug: { type: 'keyword' },
-          description: { type: 'text', analyzer: 'vietnamese' },
+          description: { type: 'text', analyzer: 'vietnamese_standard' },
           coverImage: { type: 'keyword' },
           price: { type: 'float' },
           status: { type: 'keyword' },
@@ -389,7 +478,7 @@ async function syncBooksToElasticsearch() {
             type: 'nested',
             properties: {
               id: { type: 'integer' },
-              name: { type: 'text', analyzer: 'vietnamese' },
+              name: { type: 'text', analyzer: 'vietnamese_standard' },
               slug: { type: 'keyword' },
             },
           },
@@ -397,7 +486,7 @@ async function syncBooksToElasticsearch() {
             type: 'nested',
             properties: {
               id: { type: 'integer' },
-              name: { type: 'text', analyzer: 'vietnamese' },
+              name: { type: 'text', analyzer: 'vietnamese_standard' },
               slug: { type: 'keyword' },
             },
           },
@@ -414,12 +503,13 @@ async function syncBooksToElasticsearch() {
     });
 
     if (books.length > 0) {
-      // Bulk index
+      // Bulk index with titleFirst field
       const operations = books.flatMap((book) => [
         { index: { _index: indexName, _id: book.id.toString() } },
         {
           id: book.id,
           title: book.title,
+          titleFirst: book.title.split(' ')[0],
           slug: book.slug,
           description: book.description,
           coverImage: book.coverImage,

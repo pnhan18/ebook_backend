@@ -17,6 +17,8 @@ import { BannersModule } from './banners/banners.module';
 import { SearchModule } from './search/search.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { RatingsModule } from './ratings/ratings.module';
+import { RecommendationsModule } from './recommendations/recommendations.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -25,6 +27,7 @@ import { RatingsModule } from './ratings/ratings.module';
     }),
     EventEmitterModule.forRoot(),
     PrismaModule,
+    RedisModule,
     StorageModule,
     QueueModule,
     UsersModule,
@@ -38,6 +41,7 @@ import { RatingsModule } from './ratings/ratings.module';
     SearchModule,
     FavoritesModule,
     RatingsModule,
+    RecommendationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
