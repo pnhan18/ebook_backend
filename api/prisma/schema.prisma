@@ -49,6 +49,22 @@ enum BannerPosition {
   FOOTER
 }
 
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  INCOMPLETE
+  TRIALING
+}
+
 model User {
   id                     Int              @id @default(autoincrement())
   email                  String           @unique
@@ -58,6 +74,7 @@ model User {
   signupMethod           SignupMethod
   subscriptionPlan       SubscriptionPlan @default(FREE)
   status                 Status           @default(ACTIVE)
+  stripeCustomerId       String?          @unique
   lastLoginAt            DateTime?
   resetPasswordToken     String?
   resetPasswordExpiresAt DateTime?
@@ -67,10 +84,14 @@ model User {
   bookViews              BookView[]
   favorites              Favorite[]
   ratings                Rating[]
+  payments               Payment[]
+  bookPurchases          BookPurchase[]
+  subscription           Subscription?
 
   @@index([email])
   @@index([username])
   @@index([status])
+  @@index([stripeCustomerId])
   @@map("users")
 }
 
@@ -159,6 +180,7 @@ model Book {
   views         BookView[]
   favorites     Favorite[]
   ratings       Rating[]
+  purchases     BookPurchase[]
 
   @@index([slug])
   @@index([status])
@@ -286,4 +308,65 @@ model Rating {
   @@index([bookId])
   @@index([score])
   @@map("ratings")
+}
+
+
+model Payment {
+  id                    Int           @id @default(autoincrement())
+  userId                Int
+  user                  User          @relation(fields: [userId], references: [id])
+  amount                Decimal       @db.Decimal(10, 2)
+  currency              String        @default("usd")
+  status                PaymentStatus @default(PENDING)
+  stripePaymentIntentId String?       @unique
+  stripeChargeId        String?
+  stripeReceiptUrl      String?
+  metadata              Json?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  bookPurchases         BookPurchase[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([stripePaymentIntentId])
+  @@map("payments")
+}
+
+model BookPurchase {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  bookId      Int
+  book        Book     @relation(fields: [bookId], references: [id])
+  paymentId   Int
+  payment     Payment  @relation(fields: [paymentId], references: [id])
+  price       Decimal  @db.Decimal(10, 2)
+  purchasedAt DateTime @default(now())
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@map("book_purchases")
+}
+
+model Subscription {
+  id                   Int                @id @default(autoincrement())
+  userId               Int                @unique
+  user                 User               @relation(fields: [userId], references: [id])
+  plan                 SubscriptionPlan
+  status               SubscriptionStatus @default(INCOMPLETE)
+  stripeSubscriptionId String?            @unique
+  stripeCustomerId     String
+  stripePriceId        String
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  cancelledAt          DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([stripeSubscriptionId])
+  @@index([stripeCustomerId])
+  @@map("subscriptions")
 }
