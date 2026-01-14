@@ -9,7 +9,14 @@ import { AuthorsSearchService } from './search/authors-search.service';
 
 @Module({
   imports: [PrismaModule, StorageModule, SearchModule],
-  providers: [AuthorsService, AuthorsRepository, AuthorsSearchService],
+  providers: [
+    AuthorsService,
+    {
+      provide: 'IAuthorsRepository',
+      useClass: AuthorsRepository,
+    },
+    AuthorsSearchService,
+  ],
   controllers: [AuthorsController],
   exports: [AuthorsService, AuthorsSearchService],
 })

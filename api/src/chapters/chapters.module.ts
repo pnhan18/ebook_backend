@@ -5,7 +5,13 @@ import { ChaptersRepository } from './repositories/chapters.repository';
 
 @Module({
   controllers: [ChaptersController],
-  providers: [ChaptersService, ChaptersRepository],
+  providers: [
+    ChaptersService,
+    {
+      provide: 'IChaptersRepository',
+      useClass: ChaptersRepository,
+    },
+  ],
   exports: [ChaptersService],
 })
 export class ChaptersModule {}

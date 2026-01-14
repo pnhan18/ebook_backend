@@ -21,6 +21,12 @@ export interface RatingWithUser extends Rating {
   user: UserSummary;
 }
 
+export interface RatingSummary {
+  averageRating: number;
+  ratingCount: number;
+  distribution: Record<number, number>;
+}
+
 export interface IRatingsRepository {
   create(data: Prisma.RatingUncheckedCreateInput): Promise<Rating>;
   findAllByUser(userId: number, options: { page: number; limit: number }): Promise<{ data: RatingWithBook[]; total: number }>;
@@ -29,4 +35,5 @@ export interface IRatingsRepository {
   update(userId: number, bookId: number, data: Prisma.RatingUpdateInput): Promise<Rating>;
   delete(userId: number, bookId: number): Promise<Rating>;
   getBookStats(bookId: number): Promise<{ averageRating: number; ratingCount: number }>;
+  getSummary(bookId: number): Promise<RatingSummary>;
 }

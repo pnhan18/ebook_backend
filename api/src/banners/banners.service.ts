@@ -1,16 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { Banner } from '@prisma/client';
-import { BannersRepository } from './repositories/banners.repository';
 import { StorageService } from 'src/storage/storage.service';
 import { CreateBannerDto, UpdateBannerDto, AdminQueryBannerDto, PublicQueryBannerDto } from './dto';
 import { PaginatedResponseDto, StorageUrlHelper } from '../common';
+import type { IBannersRepository } from './interfaces/banners-repository.interface';
 
 @Injectable()
 export class BannersService {
   private readonly urlHelper: StorageUrlHelper;
 
   constructor(
-    private readonly bannersRepository: BannersRepository,
+    @Inject('IBannersRepository')
+    private readonly bannersRepository: IBannersRepository,
     private readonly storageService: StorageService,
   ) {
     this.urlHelper = new StorageUrlHelper(storageService);

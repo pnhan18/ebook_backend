@@ -1,16 +1,17 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Rating } from '@prisma/client';
-import { RatingsRepository } from './repositories/ratings.repository';
 import { PaginationQueryDto, PaginatedResponseDto } from '../common';
 import { CreateRatingDto, UpdateRatingDto } from './dto';
+import type { IRatingsRepository } from './interfaces/ratings-repository.interface';
 import { RatingWithUser } from './interfaces/ratings-repository.interface';
 import { RatingChangedEvent } from './events/rating.events';
 
 @Injectable()
 export class RatingsService {
   constructor(
-    private readonly ratingsRepository: RatingsRepository,
+    @Inject('IRatingsRepository')
+    private readonly ratingsRepository: IRatingsRepository,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 

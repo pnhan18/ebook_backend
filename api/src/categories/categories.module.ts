@@ -8,7 +8,14 @@ import { CategoriesSearchService } from './search/categories-search.service';
 
 @Module({
   imports: [PrismaModule, SearchModule],
-  providers: [CategoriesService, CategoriesRepository, CategoriesSearchService],
+  providers: [
+    CategoriesService,
+    {
+      provide: 'ICategoriesRepository',
+      useClass: CategoriesRepository,
+    },
+    CategoriesSearchService,
+  ],
   controllers: [CategoriesController],
   exports: [CategoriesService, CategoriesSearchService],
 })

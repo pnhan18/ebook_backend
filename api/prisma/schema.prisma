@@ -316,7 +316,7 @@ model Payment {
   userId                Int
   user                  User          @relation(fields: [userId], references: [id])
   amount                Decimal       @db.Decimal(10, 2)
-  currency              String        @default("usd")
+  currency              String        @default("vnd")
   status                PaymentStatus @default(PENDING)
   stripePaymentIntentId String?       @unique
   stripeChargeId        String?
@@ -369,4 +369,32 @@ model Subscription {
   @@index([stripeSubscriptionId])
   @@index([stripeCustomerId])
   @@map("subscriptions")
+}
+
+
+enum BillingInterval {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+model Plan {
+  id              Int              @id @default(autoincrement())
+  plan            SubscriptionPlan
+  name            String
+  description     String?
+  price           Decimal          @db.Decimal(10, 2)
+  currency        String           @default("vnd")
+  interval        BillingInterval  @default(MONTH)
+  intervalCount   Int              @default(1)
+  stripePriceId   String?
+  stripeProductId String?
+  features        Json?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([plan, interval, intervalCount])
+  @@map("plans")
 }

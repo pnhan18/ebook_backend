@@ -43,6 +43,7 @@ export interface IBooksRepository {
   findAll(options: FindAllOptions): Promise<FindAllResult>;
   findAllPublic(options: FindAllOptions): Promise<FindAllResult>;
   findById(id: number): Promise<Book | null>;
+  findByIdWithChapters(id: number): Promise<(Book & { chapters: { contentKey: string | null }[] }) | null>;
   findBySlug(slug: string): Promise<Book | null>;
   update(id: number, data: Prisma.BookUpdateInput): Promise<Book>;
   delete(id: number): Promise<Book>;

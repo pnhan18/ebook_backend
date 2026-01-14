@@ -7,17 +7,17 @@ import { SafeUser } from './types/safe-user.type';
 
 @Injectable()
 export class UsersService {
-    constructor(
+  constructor(
     @Inject('IUsersRepository')
     private usersRepository: IUsersRepository,
-  ) {}
+  ) { }
 
-    async create({
-      email,
-      username,
-      password,
-      signupMethod = SignupMethod.EMAIL,
-    }: {
+  async create({
+    email,
+    username,
+    password,
+    signupMethod = SignupMethod.EMAIL,
+  }: {
     email: string;
     username: string;
     password: string;
@@ -51,11 +51,11 @@ export class UsersService {
     }
   }
 
-  async findByEmailWithPassword(email: string){
+  async findByEmailWithPassword(email: string) {
     return await this.usersRepository.findByEmail(email);
   }
 
-  
+
 
   async updateLastLogin(userId: number): Promise<void> {
     await this.usersRepository.update(userId, {
@@ -104,6 +104,44 @@ export class UsersService {
       password: hashedPassword,
       resetPasswordToken: null,
       resetPasswordExpiresAt: null,
+    });
+  }
+
+  // ==================== PAYMENT RELATED ====================
+
+  /**
+   * Get full user data including stripeCustomerId (for internal use only)
+   */
+  async findByIdRaw(id: number) {
+    return await this.usersRepository.findById(id);
+  }
+
+  /**
+   * Find user by Stripe customer ID
+   */
+  async findByStripeCustomerId(stripeCustomerId: string) {
+    return await this.usersRepository.findByStripeCustomerId(stripeCustomerId);
+  }
+
+  /**
+   * Update user's Stripe customer ID
+   */
+  async updateStripeCustomerId(
+    userId: number,
+    stripeCustomerId: string,
+  ): Promise<void> {
+    await this.usersRepository.update(userId, { stripeCustomerId });
+  }
+
+  /**
+   * Update user's subscription plan
+   */
+  async updateSubscriptionPlan(
+    userId: number,
+    plan: 'FREE' | 'PREMIUM',
+  ): Promise<void> {
+    await this.usersRepository.update(userId, {
+      subscriptionPlan: plan,
     });
   }
 }

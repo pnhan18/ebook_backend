@@ -1,11 +1,11 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { IUsersRepository, UserWithRoles } from '../interfaces/user-repository.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma, User} from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 
 @Injectable()
 export class UsersRepository implements IUsersRepository {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(private readonly prismaService: PrismaService) { }
 
   async create(data: Prisma.UserCreateInput): Promise<UserWithRoles> {
     const role = await this.prismaService.role.findFirst({
@@ -27,7 +27,7 @@ export class UsersRepository implements IUsersRepository {
         avatar: data.avatar,
         roles: {
           create: [
-            { role: { connect: { id: role.id } }}
+            { role: { connect: { id: role.id } } }
           ]
         }
       },
@@ -97,6 +97,21 @@ export class UsersRepository implements IUsersRepository {
   async findByResetToken(token: string): Promise<UserWithRoles | null> {
     return this.prismaService.user.findFirst({
       where: { resetPasswordToken: token },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  async findByStripeCustomerId(
+    stripeCustomerId: string,
+  ): Promise<UserWithRoles | null> {
+    return this.prismaService.user.findFirst({
+      where: { stripeCustomerId },
       include: {
         roles: {
           include: {

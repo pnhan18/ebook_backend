@@ -2,16 +2,17 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  Inject,
 } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Book, BookStatus } from '@prisma/client';
-import { BooksRepository } from './repositories/books.repository';
 import { StorageService } from 'src/storage/storage.service';
 import { QueueService } from 'src/queue/queue.service';
 import { CreateBookDto, UpdateBookDto, AdminQueryBookDto, PublicQueryBookDto } from './dto';
 import { PaginatedResponseDto, generateSlug, StorageUrlHelper } from '../common';
 import { BooksSearchService } from './search/books-search.service';
 import { RatingChangedEvent } from '../ratings/events/rating.events';
+import type { IBooksRepository } from './interfaces/books-repository.interface';
 import { ViewHistoryResult } from './interfaces/books-repository.interface';
 
 // Access type enum (matches Prisma BookAccessType)
@@ -26,7 +27,8 @@ export class BooksService {
   private readonly urlHelper: StorageUrlHelper;
 
   constructor(
-    private readonly booksRepository: BooksRepository,
+    @Inject('IBooksRepository')
+    private readonly booksRepository: IBooksRepository,
     private readonly storageService: StorageService,
     private readonly queueService: QueueService,
     private readonly booksSearchService: BooksSearchService,

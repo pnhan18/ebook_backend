@@ -11,7 +11,14 @@ import { RatingsModule } from '../ratings/ratings.module';
 @Module({
   imports: [SearchModule, StorageModule, FavoritesModule, RatingsModule],
   controllers: [BooksController, AdminBooksController],
-  providers: [BooksService, BooksRepository, BooksSearchService],
-  exports: [BooksService, BooksSearchService, BooksRepository],
+  providers: [
+    BooksService,
+    {
+      provide: 'IBooksRepository',
+      useClass: BooksRepository,
+    },
+    BooksSearchService,
+  ],
+  exports: [BooksService, BooksSearchService, 'IBooksRepository'],
 })
 export class BooksModule {}

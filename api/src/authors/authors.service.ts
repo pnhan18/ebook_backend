@@ -1,17 +1,18 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
 import { Author } from '@prisma/client';
-import { AuthorsRepository } from './repositories/authors.repository';
 import { StorageService } from 'src/storage/storage.service';
 import { CreateAuthorDto, UpdateAuthorDto } from './dto';
 import { PaginationQueryDto, PaginatedResponseDto, generateSlug, StorageUrlHelper } from '../common';
 import { AuthorsSearchService } from './search/authors-search.service';
+import type { IAuthorsRepository } from './interfaces/authors-repository.interface';
 
 @Injectable()
 export class AuthorsService {
   private readonly urlHelper: StorageUrlHelper;
 
   constructor(
-    private readonly authorsRepository: AuthorsRepository,
+    @Inject('IAuthorsRepository')
+    private readonly authorsRepository: IAuthorsRepository,
     private readonly storageService: StorageService,
     private readonly authorsSearchService: AuthorsSearchService,
   ) {

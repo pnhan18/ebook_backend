@@ -1,12 +1,15 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
 import { Favorite } from '@prisma/client';
-import { FavoritesRepository } from './repositories/favorites.repository';
 import { PaginationQueryDto, PaginatedResponseDto } from '../common';
+import type { IFavoritesRepository } from './interfaces/favorites-repository.interface';
 import { FavoriteWithBook } from './interfaces/favorites-repository.interface';
 
 @Injectable()
 export class FavoritesService {
-  constructor(private readonly favoritesRepository: FavoritesRepository) {}
+  constructor(
+    @Inject('IFavoritesRepository')
+    private readonly favoritesRepository: IFavoritesRepository,
+  ) {}
 
   async add(userId: number, bookId: number): Promise<Favorite> {
     const existing = await this.favoritesRepository.findOne(userId, bookId);

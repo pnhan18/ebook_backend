@@ -25,6 +25,8 @@ services:
       - FRONTEND_URL=${FRONTEND_URL}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
     volumes:
       - ./api/logs:/app/logs
     restart: unless-stopped

@@ -19,4 +19,5 @@ export interface IUsersRepository {
   update(id: number, data: Partial<User>): Promise<UserWithRoles>;
   findById(id: number): Promise<UserWithRoles | null>;
   findByResetToken(token: string): Promise<UserWithRoles | null>;
+  findByStripeCustomerId(stripeCustomerId: string): Promise<UserWithRoles | null>;
 }

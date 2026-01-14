@@ -19,6 +19,8 @@ import { FavoritesModule } from './favorites/favorites.module';
 import { RatingsModule } from './ratings/ratings.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
 import { RedisModule } from './redis/redis.module';
+import { PaymentsModule } from './payments/payments.module';
+import { PlansModule } from './plans/plans.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { RedisModule } from './redis/redis.module';
     FavoritesModule,
     RatingsModule,
     RecommendationsModule,
+    PlansModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

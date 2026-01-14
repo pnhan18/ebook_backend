@@ -7,7 +7,13 @@ import { PrismaModule } from '../prisma/prisma.module';
 @Module({
   imports: [PrismaModule],
   controllers: [RatingsController],
-  providers: [RatingsService, RatingsRepository],
+  providers: [
+    RatingsService,
+    {
+      provide: 'IRatingsRepository',
+      useClass: RatingsRepository,
+    },
+  ],
   exports: [RatingsService],
 })
 export class RatingsModule {}

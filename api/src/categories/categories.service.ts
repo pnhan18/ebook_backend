@@ -1,14 +1,15 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Inject } from '@nestjs/common';
 import { Category } from '@prisma/client';
-import { CategoriesRepository } from './repositories/categories.repository';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 import { PaginationQueryDto, PaginatedResponseDto, generateSlug } from '../common';
 import { CategoriesSearchService } from './search/categories-search.service';
+import type { ICategoriesRepository } from './interfaces/categories-repository.interface';
 
 @Injectable()
 export class CategoriesService {
   constructor(
-    private readonly categoriesRepository: CategoriesRepository,
+    @Inject('ICategoriesRepository')
+    private readonly categoriesRepository: ICategoriesRepository,
     private readonly categoriesSearchService: CategoriesSearchService,
   ) {}
 

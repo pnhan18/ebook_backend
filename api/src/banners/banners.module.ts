@@ -7,7 +7,13 @@ import { StorageModule } from 'src/storage/storage.module';
 @Module({
   imports: [StorageModule],
   controllers: [BannersController, AdminBannersController],
-  providers: [BannersService, BannersRepository],
+  providers: [
+    BannersService,
+    {
+      provide: 'IBannersRepository',
+      useClass: BannersRepository,
+    },
+  ],
   exports: [BannersService],
 })
 export class BannersModule {}

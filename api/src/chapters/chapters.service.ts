@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { SubscriptionPlan } from '@prisma/client';
-import { ChaptersRepository } from './repositories/chapters.repository';
+import type { IChaptersRepository } from './interfaces/chapters-repository.interface';
 import { ChapterWithBook } from './interfaces/chapters-repository.interface';
 import { StorageService } from 'src/storage/storage.service';
 import { StorageUrlHelper } from 'src/common';
@@ -15,7 +15,8 @@ export class ChaptersService {
   private readonly urlHelper: StorageUrlHelper;
 
   constructor(
-    private readonly chaptersRepository: ChaptersRepository,
+    @Inject('IChaptersRepository')
+    private readonly chaptersRepository: IChaptersRepository,
     private readonly storageService: StorageService,
   ) {
     this.urlHelper = new StorageUrlHelper(storageService);
