@@ -14,6 +14,9 @@ export class StorageService {
   private readonly s3Client: S3Client;
   private readonly bucketName: string;
   private readonly presignedUrlExpiresIn: number;
+  private readonly chapterUrlExpiresIn: number;
+  private readonly coverImageUrlExpiresIn: number;
+  private readonly avatarUrlExpiresIn: number;
 
   constructor(private readonly configService: ConfigService) {
     this.s3Client = new S3Client({
@@ -26,6 +29,9 @@ export class StorageService {
     });
     this.bucketName = this.configService.getOrThrow<string>('R2_BUCKET_NAME');
     this.presignedUrlExpiresIn = this.configService.get<number>('PRESIGNED_URL_EXPIRES_IN') || 300;
+    this.chapterUrlExpiresIn = this.configService.get<number>('CHAPTER_URL_EXPIRES_IN') || 7200;
+    this.coverImageUrlExpiresIn = this.configService.get<number>('COVER_IMAGE_URL_EXPIRES_IN') || 3600;
+    this.avatarUrlExpiresIn = this.configService.get<number>('AVATAR_URL_EXPIRES_IN') || 3600;
   }
 
   private getContentType(filename: string): string {
@@ -68,8 +74,29 @@ export class StorageService {
       Key: key,
     });
 
+    // Determine expiration based on key path if not explicitly provided
+    let defaultExpiration = this.presignedUrlExpiresIn;
+    
+    if (!expiresIn) {
+      const folder = key.split('/')[0];
+      
+      switch (folder) {
+        case 'chapters':
+          defaultExpiration = this.chapterUrlExpiresIn;
+          break;
+        case 'covers':
+          defaultExpiration = this.coverImageUrlExpiresIn;
+          break;
+        case 'avatars':
+          defaultExpiration = this.avatarUrlExpiresIn;
+          break;
+        default:
+          defaultExpiration = this.presignedUrlExpiresIn;
+      }
+    }
+
     return getSignedUrl(this.s3Client, command, {
-      expiresIn: expiresIn ?? this.presignedUrlExpiresIn,
+      expiresIn: expiresIn ?? defaultExpiration,
     });
   }
 
