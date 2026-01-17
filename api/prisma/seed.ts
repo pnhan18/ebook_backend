@@ -8,7 +8,14 @@ const esClient = new Client({
 });
 
 async function main() {
-  console.log('🌱 Starting seed...');
+  // 🛡️ Safety Check: Prevent running seed in production
+  if (process.env.NODE_ENV === 'production') {
+    console.error('🚫  Seed operation aborted: Cannot seed database in PRODUCTION environment.');
+    console.error('    This is a safety measure to prevent data loss or insecure configuration.');
+    return;
+  }
+
+  console.log('🌱 Starting seed (Development Environment)...');
 
   // Seed Roles
   const roles = [

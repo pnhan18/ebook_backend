@@ -10,7 +10,7 @@ interface BookWithRelations extends Book {
 
 @Injectable()
 export class BooksSearchService implements OnModuleInit {
-  private readonly index = 'books';
+  private readonly index = 'ebook-books';
 
   constructor(
     private readonly searchService: SearchService,

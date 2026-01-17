@@ -60,4 +60,4 @@ COPY --from=build --chown=nestjs:nodejs /app/prisma ./prisma
 COPY --from=build --chown=nestjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 
 # Khởi động ứng dụng
-CMD ["node", "dist/main"]
+CMD ["node", "dist/src/main"]

@@ -6,7 +6,7 @@ import {
   ParseIntPipe,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { RecommendationsService } from './recommendations.service';
 import { JwtOptionalGuard } from '../auth/guards/jwt-optional.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -14,10 +14,11 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 @ApiTags('Recommendations')
 @Controller('recommendations')
 export class RecommendationsController {
-  constructor(private readonly recommendationsService: RecommendationsService) {}
+  constructor(private readonly recommendationsService: RecommendationsService) { }
 
   @Get()
   @UseGuards(JwtOptionalGuard)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get personalized book recommendations' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async getRecommendations(

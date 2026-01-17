@@ -15,8 +15,9 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
 import { PaymentsService } from './payments.service';
-import { JwtAuthGuard } from '../auth/guards';
-import { CurrentUser } from '../common/decorators';
+import { StripeService } from './stripe.service';
+import { JwtAuthGuard, RolesGuard } from '../auth/guards';
+import { CurrentUser, Roles } from '../common/decorators';
 import { CreateSubscriptionDto } from './dto';
 
 interface RawBodyRequest extends Request {
@@ -26,7 +27,10 @@ interface RawBodyRequest extends Request {
 @ApiTags('Payments')
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) { }
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly stripeService: StripeService,
+  ) {}
 
   // ==================== BOOK PURCHASE ====================
 
@@ -119,5 +123,18 @@ export class PaymentsController {
       );
     }
     return this.paymentsService.handleWebhook(req.rawBody, signature);
+  }
+
+  // ==================== ADMIN ====================
+
+  @Post('admin/sync-stripe')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Sync all plans to Stripe (Admin only)' })
+  async syncStripe() {
+    await this.stripeService.syncAllPlans();
+    return { message: 'Stripe plans synced successfully' };
   }
 }

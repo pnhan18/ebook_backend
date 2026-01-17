@@ -4,7 +4,7 @@ import { Category } from '@prisma/client';
 
 @Injectable()
 export class CategoriesSearchService implements OnModuleInit {
-  private readonly index = 'categories';
+  private readonly index = 'ebook-categories';
 
   constructor(private readonly searchService: SearchService) {}
 

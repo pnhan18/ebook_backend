@@ -52,7 +52,7 @@ export class BooksController {
     private readonly booksSearchService: BooksSearchService,
     private readonly favoritesService: FavoritesService,
     private readonly ratingsService: RatingsService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({ summary: 'Get all published books' })
@@ -127,8 +127,6 @@ export class BooksController {
   }
 
   @Get(':bookId/favorite')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Check if book is favorited and get total favorites count' })
   @ApiSuccessResponse(FavoriteStatusResponseDto)
   @ApiUnauthorizedResponse()
@@ -240,7 +238,7 @@ export class BooksController {
 @Roles('admin')
 @ApiBearerAuth('JWT-auth')
 export class AdminBooksController {
-  constructor(private readonly booksService: BooksService) {}
+  constructor(private readonly booksService: BooksService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new book' })

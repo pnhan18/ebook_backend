@@ -92,20 +92,22 @@ export class BooksService {
       }
     }
 
-    const { categoryIds, authorIds, ...bookData } = createBookDto;
+    const { categoryIds, authorIds, accessType, ...bookData } = createBookDto;
 
-    // Calculate accessType (totalChapters defaults to 0 for new books)
-    const accessType = this.calculateAccessType({
-      price: bookData.price,
-      totalChapters: 0,
-      freeChapters: bookData.freeChapters ?? 0,
-    });
-
-    const book = await this.booksRepository.create({
+    const bookPayload: any = {
       ...bookData,
       slug,
       accessType: accessType,
-    } as any);
+    };
+
+    if (accessType === 'FREE') {
+      bookPayload.freeChapters = 0;
+      bookPayload.price = null;
+    } else if (accessType === 'MEMBERSHIP') {
+      bookPayload.price = null;
+    }
+
+    const book = await this.booksRepository.create(bookPayload);
 
     if (categoryIds?.length) {
       await this.booksRepository.setCategories(book.id, categoryIds);
@@ -115,19 +117,18 @@ export class BooksService {
       await this.booksRepository.setAuthors(book.id, authorIds);
     }
 
-    // Send to worker for processing if sourceKey exists
     if (book.sourceKey) {
       await this.booksRepository.updateStatus(book.id, 'PROCESSING');
       await this.queueService.publishBookProcessing(book.id, book.sourceKey);
     }
 
     const createdBook = await this.booksRepository.findById(book.id);
-    
+
     // Index to Elasticsearch
     if (createdBook) {
       await this.booksSearchService.indexBook(createdBook as any);
     }
-    
+
     return createdBook as Book;
   }
 
@@ -223,19 +224,19 @@ export class BooksService {
       }
     }
 
-    const { categoryIds, authorIds, ...bookData } = updateBookDto;
+    const { categoryIds, authorIds, accessType, ...bookData } = updateBookDto;
 
-    // Recalculate accessType if relevant fields changed
-    const needsAccessTypeUpdate =
-      bookData.price !== undefined || bookData.freeChapters !== undefined;
-
-    if (needsAccessTypeUpdate) {
-      const accessType = this.calculateAccessType({
-        price: bookData.price ?? existingBook.price,
-        totalChapters: existingBook.totalChapters,
-        freeChapters: bookData.freeChapters ?? existingBook.freeChapters,
-      });
+    // If accessType is provided, apply business rules
+    if (accessType !== undefined) {
       (bookData as any).accessType = accessType;
+
+      // Apply defaults based on new accessType
+      if (accessType === 'FREE') {
+        (bookData as any).freeChapters = 0;
+        (bookData as any).price = null;
+      } else if (accessType === 'MEMBERSHIP') {
+        (bookData as any).price = null;
+      }
     }
 
     await this.booksRepository.update(id, bookData);
@@ -249,12 +250,12 @@ export class BooksService {
     }
 
     const updatedBook = await this.booksRepository.findById(id);
-    
+
     // Update in Elasticsearch
     if (updatedBook) {
       await this.booksSearchService.updateBook(updatedBook as any);
     }
-    
+
     return updatedBook as Book;
   }
 
@@ -285,10 +286,10 @@ export class BooksService {
     await Promise.allSettled(deletePromises);
 
     const deletedBook = await this.booksRepository.delete(id);
-    
+
     // Delete from Elasticsearch
     await this.booksSearchService.deleteBook(id);
-    
+
     return deletedBook;
   }
 

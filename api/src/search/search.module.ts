@@ -7,13 +7,30 @@ import { SearchService } from './search.service';
   imports: [
     ElasticsearchModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        node: configService.get('ELASTICSEARCH_URL') || 'http://localhost:9200',
-      }),
       inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const node = config.get<string>('ELASTICSEARCH_URL');
+        const username = config.get<string>('ELASTICSEARCH_USERNAME');
+        const password = config.get<string>('ELASTICSEARCH_PASSWORD');
+
+        if (!node || !username || !password) {
+          throw new Error('Missing Elasticsearch environment variables');
+        }
+
+        return {
+          node,
+          auth: {
+            username,
+            password,
+          },
+          tls: {
+            rejectUnauthorized: false,
+          },
+        };
+      },
     }),
   ],
   providers: [SearchService],
-  exports: [SearchService],
+  exports: [SearchService]
 })
 export class SearchModule {}

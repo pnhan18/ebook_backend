@@ -5,6 +5,7 @@ import { TransformInterceptor } from './common/interceptors';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -20,6 +21,8 @@ async function bootstrap() {
 
   // Cookie parser middleware
   app.use(cookieParser());
+
+  app.use(compression());
 
   // Global exception filter
   app.useGlobalFilters(new HttpExceptionFilter());

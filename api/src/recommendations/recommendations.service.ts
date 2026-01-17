@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { BooksService } from '../books/books.service';
+import { StorageService } from '../storage/storage.service';
 
 interface CachedRecommendation {
   book_id: number;
@@ -27,41 +28,63 @@ export class RecommendationsService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly booksService: BooksService,
-  ) {}
+    private readonly storageService: StorageService,
+  ) { }
+
+  /**
+   * Convert coverImage keys to presigned URLs
+   */
+  private async addPresignedUrls<T extends { coverImage?: string | null }>(
+    books: T[],
+  ): Promise<T[]> {
+    return Promise.all(
+      books.map(async (book) => ({
+        ...book,
+        coverImage: book.coverImage
+          ? await this.storageService.getPresignedDownloadUrl(book.coverImage)
+          : null,
+      })),
+    );
+  }
 
   async getRecommendations(
     userId: number | null | undefined,
     limit: number = 10,
   ) {
+    let books;
+
     // Thử đọc từ Redis cache trước
     const cached = await this.getCachedRecommendations(userId ?? null);
     if (cached && cached.length > 0) {
-      return this.hydrateBooks(cached.slice(0, limit));
+      books = await this.hydrateBooks(cached.slice(0, limit));
+    } else if (!userId) {
+      // Fallback về SQL nếu chưa có cache
+      books = await this.getPopularBooks(limit);
+    } else {
+      const interactionCount = await this.booksService.getUserViewCount(userId);
+      if (interactionCount < 5) {
+        books = await this.getColdStartRecommendations(userId, limit);
+      } else {
+        books = await this.getSimpleRecommendations(userId, limit);
+      }
     }
 
-    // Fallback về SQL nếu chưa có cache
-    if (!userId) {
-      return this.getPopularBooks(limit);
-    }
-
-    const interactionCount = await this.booksService.getUserViewCount(userId);
-
-    if (interactionCount < 5) {
-      return this.getColdStartRecommendations(userId, limit);
-    }
-
-    return this.getSimpleRecommendations(userId, limit);
+    return this.addPresignedUrls(books);
   }
 
   async getSimilarBooks(bookId: number, limit: number = 10) {
+    let books;
+
     // Thử đọc từ Redis cache trước
     const cached = await this.getCachedSimilarBooks(bookId);
     if (cached && cached.length > 0) {
-      return this.hydrateBooks(cached.slice(0, limit));
+      books = await this.hydrateBooks(cached.slice(0, limit));
+    } else {
+      // Fallback về SQL
+      books = await this.getSimilarBooksFallback(bookId, limit);
     }
 
-    // Fallback về SQL
-    return this.getSimilarBooksFallback(bookId, limit);
+    return this.addPresignedUrls(books);
   }
 
   // ============ Redis Cache Methods ============

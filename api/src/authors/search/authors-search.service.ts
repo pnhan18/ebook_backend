@@ -5,7 +5,7 @@ import { Author } from '@prisma/client';
 
 @Injectable()
 export class AuthorsSearchService implements OnModuleInit {
-  private readonly index = 'authors';
+  private readonly index = 'ebook-authors';
 
   constructor(
     private readonly searchService: SearchService,

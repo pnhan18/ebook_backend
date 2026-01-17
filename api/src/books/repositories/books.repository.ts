@@ -10,7 +10,7 @@ import {
 
 @Injectable()
 export class BooksRepository implements IBooksRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async create(data: Prisma.BookCreateInput): Promise<Book> {
     return this.prisma.book.create({ data });
@@ -405,7 +405,10 @@ export class BooksRepository implements IBooksRepository {
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
-      select: this.minimalBookSelect,
+      select: {
+        ...this.minimalBookSelect,
+        categories: { select: { category: { select: { id: true, name: true } } } },
+      },
     });
 
     return books as unknown as Book[];

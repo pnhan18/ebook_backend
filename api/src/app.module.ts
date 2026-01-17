@@ -21,6 +21,7 @@ import { RecommendationsModule } from './recommendations/recommendations.module'
 import { RedisModule } from './redis/redis.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PlansModule } from './plans/plans.module';
+import { AudioModule } from './audio/audio.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { PlansModule } from './plans/plans.module';
     RecommendationsModule,
     PlansModule,
     PaymentsModule,
+    AudioModule,
   ],
   controllers: [AppController],
   providers: [AppService],

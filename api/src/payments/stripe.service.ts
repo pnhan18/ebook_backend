@@ -30,8 +30,15 @@ export class StripeService implements OnModuleInit {
   }
 
   async onModuleInit() {
+    // Chỉ tự động sync trong development
+    if (this.configService.get<string>('NODE_ENV') !== 'development') {
+      this.logger.log('⏭️ Skipping auto Stripe sync (use API to sync manually)');
+      return;
+    }
+
     try {
       await this.syncAllPlans();
+      this.logger.log('✅ Stripe plans synced');
     } catch (error) {
       this.logger.error('❌ Lỗi khi đồng bộ Stripe:', error);
     }
@@ -186,7 +193,6 @@ export class StripeService implements OnModuleInit {
           currency: params.bookData.currency,
           product_data: {
             name: params.bookData.name,
-            description: params.bookData.description,
             images: params.bookData.imageUrl ? [params.bookData.imageUrl] : [],
             metadata: { bookId: params.bookData.bookId },
           },

@@ -1,8 +1,8 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ElasticsearchService } from '@nestjs/elasticsearch';
 
 @Injectable()
-export class SearchService{
+export class SearchService {
   constructor(private readonly elasticsearchService: ElasticsearchService) {}
 
   async createIndex(index: string, settings?: any) {

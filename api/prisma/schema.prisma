@@ -205,10 +205,34 @@ model Chapter {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  audio       Audio?
+
   @@unique([bookId, slug])
   @@index([bookId])
   @@index([order])
   @@map("chapters")
+}
+
+enum AudioStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Audio {
+  id          Int         @id @default(autoincrement())
+  chapterId   Int         @unique
+  chapter     Chapter     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  audioKey    String?
+  status      AudioStatus @default(PENDING)
+  voice       String?     @default("Binh")
+  duration    Int?
+  error       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("audios")
 }
 
 model BookCategory {
