@@ -64,11 +64,14 @@ export class ChaptersService {
     }
 
     return chapters.map((chapter: any) => {
-      const { book, ...chapterData } = chapter;
+      const { book, audio, ...chapterData } = chapter;
       const isFreeChapter = chapter.order <= freeChapters;
+      const hasAudio = audio?.status === 'COMPLETED' || !!audio?.audioKey;
+
       return {
         ...chapterData,
         hasAccess: hasFullAccess || isFreeChapter,
+        hasAudio,
       };
     });
   }
@@ -121,13 +124,15 @@ export class ChaptersService {
       );
     }
 
-    // Remove book and contentKey from response
-    const { book, contentKey, ...chapterData } = chapter;
+    // Remove book, contentKey and audio from response
+    const { book, contentKey, audio, ...chapterData } = chapter;
+    const hasAudio = audio?.status === 'COMPLETED' || !!audio?.audioKey;
 
     return {
       ...chapterData,
       contentUrl,
       hasAccess,
+      hasAudio,
     };
   }
 

@@ -12,6 +12,12 @@ export class ChapterResponseDto {
 
   @ApiProperty({ example: 1 })
   order: number;
+
+  @ApiProperty({ example: true, description: 'Whether user has access to read this chapter' })
+  hasAccess: boolean;
+
+  @ApiProperty({ example: true, description: 'Whether this chapter has audio version' })
+  hasAudio: boolean;
 }
 
 export class ChapterDetailResponseDto extends ChapterResponseDto {
@@ -32,9 +38,6 @@ export class ChapterDetailResponseDto extends ChapterResponseDto {
 
   @ApiProperty({ example: '2025-12-12T10:00:00.000Z' })
   updatedAt: Date;
-
-  @ApiProperty({ example: true, description: 'Whether user has access to read this chapter' })
-  hasAccess: boolean;
 
   @ApiProperty({
     example: 'https://storage.example.com/chapters/abc123?signature=...',

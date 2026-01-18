@@ -23,6 +23,12 @@ export class ChaptersRepository implements IChaptersRepository {
             freeChapters: true,
           },
         },
+        audio: {
+          select: {
+            status: true,
+            audioKey: true,
+          },
+        },
       },
     }) as unknown as Chapter[];
   }
@@ -47,6 +53,12 @@ export class ChaptersRepository implements IChaptersRepository {
             requireLogin: true,
             coverImage: true,
             accessType: true,
+          },
+        },
+        audio: {
+          select: {
+            status: true,
+            audioKey: true,
           },
         },
       },

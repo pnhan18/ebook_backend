@@ -8,6 +8,10 @@ export type ChapterWithBook = Chapter & {
     coverImage: string | null;
     accessType: string;
   };
+  audio?: {
+    status: string;
+    audioKey: string | null;
+  } | null;
 };
 
 export interface IChaptersRepository {
