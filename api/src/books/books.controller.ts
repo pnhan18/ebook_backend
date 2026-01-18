@@ -213,22 +213,11 @@ export class BooksController {
   @Get(':slug')
   @UseGuards(JwtOptionalGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get book by slug (records view)' })
+  @ApiOperation({ summary: 'Get book by slug' })
   @ApiSuccessResponse(BookResponseDto)
   @ApiNotFoundResponse('Book not found')
-  async findBySlug(
-    @Param('slug') slug: string,
-    @Req() req: Request,
-    @CurrentUser() user?: AuthenticatedUser,
-  ) {
-    const book = await this.booksService.findBySlug(slug);
-
-    // Record view
-    const ipAddress = req.ip || req.headers['x-forwarded-for']?.toString();
-    const userAgent = req.headers['user-agent'];
-    await this.booksService.recordView(book.id, user?.id, ipAddress, userAgent);
-
-    return book;
+  findBySlug(@Param('slug') slug: string) {
+    return this.booksService.findBySlug(slug);
   }
 }
 

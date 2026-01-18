@@ -11,6 +11,7 @@ import { QueueService } from 'src/queue/queue.service';
 import { CreateBookDto, UpdateBookDto, AdminQueryBookDto, PublicQueryBookDto } from './dto';
 import { PaginatedResponseDto, generateSlug, StorageUrlHelper } from '../common';
 import { BooksSearchService } from './search/books-search.service';
+import { ChapterReadEvent } from '../chapters/events/chapter-read.event';
 import { RatingChangedEvent } from '../ratings/events/rating.events';
 import type { IBooksRepository } from './interfaces/books-repository.interface';
 import { ViewHistoryResult } from './interfaces/books-repository.interface';
@@ -36,12 +37,12 @@ export class BooksService {
     this.urlHelper = new StorageUrlHelper(storageService);
   }
 
-  private async transformBookUrls<T extends { coverImage?: string | null }>(book: T): Promise<T> {
-    return this.urlHelper.transformOne(book, ['coverImage']);
+  private transformBookUrls<T extends { coverImage?: string | null }>(book: T): T {
+    return this.urlHelper.transformToPublicUrls(book, ['coverImage']);
   }
 
-  private async transformBooksUrls<T extends { coverImage?: string | null }>(books: T[]): Promise<T[]> {
-    return this.urlHelper.transformMany(books, ['coverImage']);
+  private transformBooksUrls<T extends { coverImage?: string | null }>(books: T[]): T[] {
+    return this.urlHelper.transformManyToPublicUrls(books, ['coverImage']);
   }
 
   private async generateUniqueSlug(title: string): Promise<string> {
@@ -152,7 +153,7 @@ export class BooksService {
       maxPrice: query.maxPrice,
     });
 
-    const transformedData = await this.transformBooksUrls(data);
+    const transformedData = this.transformBooksUrls(data);
     return new PaginatedResponseDto(transformedData, total, page, limit);
   }
 
@@ -170,7 +171,7 @@ export class BooksService {
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
     });
-    const transformedData = await this.transformBooksUrls(data);
+    const transformedData = this.transformBooksUrls(data);
     return new PaginatedResponseDto(transformedData, total, page, limit);
   }
 
@@ -200,6 +201,16 @@ export class BooksService {
     userAgent?: string,
   ): Promise<void> {
     await this.booksRepository.recordView(bookId, userId, ipAddress, userAgent);
+  }
+
+  @OnEvent('chapter.read')
+  async handleChapterRead(payload: ChapterReadEvent) {
+    await this.recordView(
+      payload.bookId,
+      payload.userId,
+      payload.ipAddress,
+      payload.userAgent,
+    );
   }
 
   async getUserViewHistory(

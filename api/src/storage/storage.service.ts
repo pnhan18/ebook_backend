@@ -13,8 +13,9 @@ import { randomUUID } from 'crypto';
 export class StorageService {
   private readonly s3Client: S3Client;
   private readonly bucketName: string;
+  private readonly publicBaseUrl: string;
   private readonly presignedUrlExpiresIn: number;
-  private readonly chapterUrlExpiresIn: number;
+  private readonly bookContentExpiresIn: number;
   private readonly coverImageUrlExpiresIn: number;
   private readonly avatarUrlExpiresIn: number;
 
@@ -28,10 +29,14 @@ export class StorageService {
       },
     });
     this.bucketName = this.configService.getOrThrow<string>('R2_BUCKET_NAME');
+    this.publicBaseUrl = this.configService.getOrThrow<string>('R2_PUBLIC_URL');
     this.presignedUrlExpiresIn = this.configService.get<number>('PRESIGNED_URL_EXPIRES_IN') || 300;
-    this.chapterUrlExpiresIn = this.configService.get<number>('CHAPTER_URL_EXPIRES_IN') || 7200;
-    this.coverImageUrlExpiresIn = this.configService.get<number>('COVER_IMAGE_URL_EXPIRES_IN') || 3600;
-    this.avatarUrlExpiresIn = this.configService.get<number>('AVATAR_URL_EXPIRES_IN') || 3600;
+    this.bookContentExpiresIn = this.configService.get<number>('BOOK_CONTENT_EXPIRES_IN') || 7200;
+  }
+
+  getPublicUrl(key: string | null | undefined): string | null {
+    if (!key) return null;
+    return `${this.publicBaseUrl}/${key}`;
   }
 
   private getContentType(filename: string): string {
@@ -76,19 +81,14 @@ export class StorageService {
 
     // Determine expiration based on key path if not explicitly provided
     let defaultExpiration = this.presignedUrlExpiresIn;
-    
+
     if (!expiresIn) {
       const folder = key.split('/')[0];
-      
+
       switch (folder) {
         case 'chapters':
-          defaultExpiration = this.chapterUrlExpiresIn;
-          break;
-        case 'covers':
-          defaultExpiration = this.coverImageUrlExpiresIn;
-          break;
-        case 'avatars':
-          defaultExpiration = this.avatarUrlExpiresIn;
+        case 'audio':
+          defaultExpiration = this.bookContentExpiresIn;
           break;
         default:
           defaultExpiration = this.presignedUrlExpiresIn;

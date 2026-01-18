@@ -22,6 +22,7 @@ import { RedisModule } from './redis/redis.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PlansModule } from './plans/plans.module';
 import { AudioModule } from './audio/audio.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -48,8 +49,9 @@ import { AudioModule } from './audio/audio.module';
     PlansModule,
     PaymentsModule,
     AudioModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

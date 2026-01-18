@@ -5,7 +5,7 @@ import { IChaptersRepository } from '../interfaces/chapters-repository.interface
 
 @Injectable()
 export class ChaptersRepository implements IChaptersRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findByBookSlug(bookSlug: string): Promise<Chapter[]> {
     return this.prisma.chapter.findMany({
@@ -13,9 +13,16 @@ export class ChaptersRepository implements IChaptersRepository {
       orderBy: { order: 'asc' },
       select: {
         id: true,
+        bookId: true,
         title: true,
         slug: true,
         order: true,
+        book: {
+          select: {
+            accessType: true,
+            freeChapters: true,
+          },
+        },
       },
     }) as unknown as Chapter[];
   }
@@ -35,9 +42,11 @@ export class ChaptersRepository implements IChaptersRepository {
       include: {
         book: {
           select: {
+            id: true,
             freeChapters: true,
             requireLogin: true,
             coverImage: true,
+            accessType: true,
           },
         },
       },

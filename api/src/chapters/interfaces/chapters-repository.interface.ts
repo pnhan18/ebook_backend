@@ -2,9 +2,11 @@ import { Chapter } from '@prisma/client';
 
 export type ChapterWithBook = Chapter & {
   book: {
+    id: number;
     freeChapters: number;
     requireLogin: boolean;
     coverImage: string | null;
+    accessType: string;
   };
 };
 

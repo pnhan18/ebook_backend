@@ -1,16 +1,26 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { SignupMethod, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { ConflictException } from 'src/common';
+import { ConflictException, StorageUrlHelper } from 'src/common';
 import type { IUsersRepository } from './interfaces/user-repository.interface';
 import { SafeUser } from './types/safe-user.type';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class UsersService {
+  private readonly urlHelper: StorageUrlHelper;
+
   constructor(
     @Inject('IUsersRepository')
     private usersRepository: IUsersRepository,
-  ) { }
+    private readonly storageService: StorageService,
+  ) {
+    this.urlHelper = new StorageUrlHelper(storageService);
+  }
+
+  private transformUserUrls(user: SafeUser): SafeUser {
+    return this.urlHelper.transformToPublicUrls(user, ['avatar']);
+  }
 
   async create({
     email,
@@ -45,17 +55,17 @@ export class UsersService {
     // Remove password and format roles
     const { password: _, roles, ...safeUser } = user;
 
-    return {
+    const transformedUser = {
       ...safeUser,
       roles: roles.map(r => r.role)
-    }
+    };
+
+    return this.transformUserUrls(transformedUser);
   }
 
   async findByEmailWithPassword(email: string) {
     return await this.usersRepository.findByEmail(email);
   }
-
-
 
   async updateLastLogin(userId: number): Promise<void> {
     await this.usersRepository.update(userId, {
@@ -72,10 +82,12 @@ export class UsersService {
 
     const { password: _, roles, ...safeUser } = user;
 
-    return {
+    const transformedUser = {
       ...safeUser,
       roles: roles.map((r) => r.role),
     };
+
+    return this.transformUserUrls(transformedUser);
   }
 
   async findByIdWithPassword(id: number) {
