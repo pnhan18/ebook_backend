@@ -19,6 +19,7 @@ export interface IPlansRepository {
   findActive(): Promise<Plan[]>;
   findById(id: number): Promise<Plan | null>;
   findByPlan(plan: SubscriptionPlan): Promise<Plan | null>;
+  findByPlanConfig(plan: SubscriptionPlan, interval: string, intervalCount: number): Promise<Plan | null>;
   update(id: number, data: Prisma.PlanUpdateInput): Promise<Plan>;
   delete(id: number): Promise<Plan>;
 }

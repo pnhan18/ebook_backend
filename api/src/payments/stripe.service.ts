@@ -166,7 +166,6 @@ export class StripeService implements OnModuleInit {
     bookData?: {
       // Dùng cho One-time Payment (Sách)
       name: string;
-      description?: string;
       price: number;
       currency: string;
       imageUrl?: string;

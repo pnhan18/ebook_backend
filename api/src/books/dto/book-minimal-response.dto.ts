@@ -13,6 +13,9 @@ export class BookMinimalResponseDto {
   @ApiPropertyOptional({ example: 'https://example.com/cover.jpg' })
   coverImage?: string;
 
+  @ApiPropertyOptional({ example: 'A story about a young wizard...' })
+  description?: string;
+
   @ApiProperty({ example: 1250 })
   viewCount: number;
 }

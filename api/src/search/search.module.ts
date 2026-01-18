@@ -33,4 +33,4 @@ import { SearchService } from './search.service';
   providers: [SearchService],
   exports: [SearchService]
 })
-export class SearchModule {}
+export class SearchModule { }

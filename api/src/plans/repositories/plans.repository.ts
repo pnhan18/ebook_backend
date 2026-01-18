@@ -5,7 +5,7 @@ import { FindAllOptions, FindAllResult, IPlansRepository } from '../interfaces/p
 
 @Injectable()
 export class PlansRepository implements IPlansRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async create(data: Prisma.PlanCreateInput): Promise<Plan> {
     return this.prisma.plan.create({ data });
@@ -42,10 +42,19 @@ export class PlansRepository implements IPlansRepository {
   }
 
   async findActive(): Promise<Plan[]> {
-    return this.prisma.plan.findMany({
+    const plans = await this.prisma.plan.findMany({
       where: { isActive: true },
-      orderBy: { price: 'asc' },
+      orderBy: [{ intervalCount: 'asc' }, { price: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        interval: true,
+        intervalCount: true,
+        price: true,
+        features: true,
+      },
     });
+    return plans as unknown as Plan[];
   }
 
   async findById(id: number): Promise<Plan | null> {
@@ -55,6 +64,16 @@ export class PlansRepository implements IPlansRepository {
   async findByPlan(plan: SubscriptionPlan): Promise<Plan | null> {
     return this.prisma.plan.findFirst({
       where: { plan, isActive: true },
+    });
+  }
+
+  async findByPlanConfig(
+    plan: SubscriptionPlan,
+    interval: string,
+    intervalCount: number,
+  ): Promise<Plan | null> {
+    return this.prisma.plan.findFirst({
+      where: { plan, interval: interval as any, intervalCount },
     });
   }
 

@@ -407,6 +407,7 @@ export class BooksRepository implements IBooksRepository {
       take: limit,
       select: {
         ...this.minimalBookSelect,
+        description: true,
         categories: { select: { category: { select: { id: true, name: true } } } },
       },
     });

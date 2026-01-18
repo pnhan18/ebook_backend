@@ -87,7 +87,6 @@ export class PaymentsService {
       customerId,
       bookData: {
         name: book.title,
-        description: book.description || undefined,
         price: Number(book.price),
         currency: 'vnd',
         imageUrl: book.coverImage || undefined,

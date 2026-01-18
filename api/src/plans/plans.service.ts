@@ -15,13 +15,22 @@ export class PlansService {
   constructor(
     @Inject('IPlansRepository')
     private readonly plansRepository: IPlansRepository,
-  ) {}
+  ) { }
 
   async create(dto: CreatePlanDto): Promise<Plan> {
-    // Check if plan type already exists
-    const existing = await this.plansRepository.findByPlan(dto.plan);
+    const interval = dto.interval || 'MONTH';
+    const intervalCount = dto.intervalCount ?? 1;
+
+    // Check if plan with same config already exists
+    const existing = await this.plansRepository.findByPlanConfig(
+      dto.plan,
+      interval,
+      intervalCount,
+    );
     if (existing) {
-      throw new ConflictException(`Plan ${dto.plan} already exists`);
+      throw new ConflictException(
+        `Plan ${dto.plan} with interval ${interval} x ${intervalCount} already exists`,
+      );
     }
 
     return this.plansRepository.create({
@@ -30,7 +39,8 @@ export class PlansService {
       description: dto.description,
       price: dto.price,
       currency: dto.currency || 'vnd',
-      interval: dto.interval,
+      interval: interval,
+      intervalCount: intervalCount,
       features: dto.features,
       isActive: dto.isActive ?? true,
     });

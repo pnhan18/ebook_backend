@@ -31,6 +31,12 @@ export class CreatePlanDto {
   @IsEnum(BillingInterval)
   interval?: BillingInterval;
 
+  @ApiPropertyOptional({ example: 1, description: 'Số chu kỳ (ví dụ: 3 cho gói 3 tháng)', default: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  intervalCount?: number;
+
   @ApiPropertyOptional({ example: ['Đọc không giới hạn', 'Không quảng cáo'] })
   @IsOptional()
   @IsArray()

@@ -30,7 +30,7 @@ export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
     private readonly stripeService: StripeService,
-  ) {}
+  ) { }
 
   // ==================== BOOK PURCHASE ====================
 
@@ -129,7 +129,7 @@ export class PaymentsController {
 
   @Post('admin/sync-stripe')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('admin')
   @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sync all plans to Stripe (Admin only)' })
