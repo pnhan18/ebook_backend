@@ -23,6 +23,8 @@ import { PaymentsModule } from './payments/payments.module';
 import { PlansModule } from './plans/plans.module';
 import { AudioModule } from './audio/audio.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { CacheModule } from './cache/cache.module';
+import { PromotionsModule } from './promotions/promotions.module';
 
 @Module({
   imports: [
@@ -32,6 +34,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     EventEmitterModule.forRoot(),
     PrismaModule,
     RedisModule,
+    CacheModule,
     StorageModule,
     QueueModule,
     UsersModule,

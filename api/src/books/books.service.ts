@@ -15,6 +15,9 @@ import { ChapterReadEvent } from '../chapters/events/chapter-read.event';
 import { RatingChangedEvent } from '../ratings/events/rating.events';
 import type { IBooksRepository } from './interfaces/books-repository.interface';
 import { ViewHistoryResult } from './interfaces/books-repository.interface';
+import { CacheService } from '../cache/cache.service';
+import { CacheTTL } from '../cache/cache.constants';
+import { PromotionsService } from '../promotions/promotions.service';
 
 // Access type enum (matches Prisma BookAccessType)
 export enum AccessType {
@@ -33,6 +36,8 @@ export class BooksService {
     private readonly storageService: StorageService,
     private readonly queueService: QueueService,
     private readonly booksSearchService: BooksSearchService,
+    private readonly cacheService: CacheService,
+    private readonly promotionsService: PromotionsService,
   ) {
     this.urlHelper = new StorageUrlHelper(storageService);
   }
@@ -55,6 +60,101 @@ export class BooksService {
     }
 
     return slug;
+  }
+
+  private async applyPromotionToBook(book: any) {
+    if (!book) return book;
+    // Only apply promotion if book has a price (PURCHASE type)
+    if (book.price && Number(book.price) > 0) {
+      const priceInfo = await this.promotionsService.calculateBookPrice(book);
+
+      let discountPercent = 0;
+      let isOnPromotion = false;
+      let promotionEndDate: Date | null = null;
+
+      if (priceInfo.promotion && priceInfo.discountAmount > 0) {
+        isOnPromotion = true;
+        promotionEndDate = priceInfo.promotion.endDate;
+
+        if (priceInfo.promotion.type === 'PERCENTAGE') {
+          discountPercent = Number(priceInfo.promotion.value);
+        } else {
+          // Calculate percentage from fixed amount
+          discountPercent = Math.round((priceInfo.discountAmount / Number(book.price)) * 100);
+        }
+      }
+
+      return {
+        ...book,
+        price: Number(book.price),
+        isOnPromotion,
+        discountPercent,
+        promotionEndDate,
+      };
+    }
+    return {
+      ...book,
+      isOnPromotion: false,
+      discountPercent: 0,
+      promotionEndDate: null,
+    };
+  }
+
+  /**
+   * Batch apply promotions to multiple books (performance optimized - 1 DB query)
+   */
+  private async applyPromotionsToBooks(books: any[]) {
+    if (books.length === 0) return [];
+
+    // Filter books with price for batch processing
+    const booksWithPrice = books.filter(b => b.price && Number(b.price) > 0);
+    const booksWithoutPrice = books.filter(b => !b.price || Number(b.price) <= 0);
+
+    // Get all promotion data in ONE query
+    const priceInfos = await this.promotionsService.calculateBookPricesBatch(booksWithPrice);
+
+    // Create a map for quick lookup
+    const priceInfoMap = new Map(priceInfos.map(p => [p.bookId, p]));
+
+    // Apply promotion data to books
+    const result = books.map(book => {
+      if (!book.price || Number(book.price) <= 0) {
+        return {
+          ...book,
+          isOnPromotion: false,
+          discountPercent: 0,
+          promotionEndDate: null,
+        };
+      }
+
+      const priceInfo = priceInfoMap.get(book.id);
+      if (!priceInfo || !priceInfo.promotion || priceInfo.discountAmount <= 0) {
+        return {
+          ...book,
+          price: Number(book.price),
+          isOnPromotion: false,
+          discountPercent: 0,
+          promotionEndDate: null,
+        };
+      }
+
+      let discountPercent = 0;
+      if (priceInfo.promotion.type === 'PERCENTAGE') {
+        discountPercent = Number(priceInfo.promotion.value);
+      } else {
+        discountPercent = Math.round((priceInfo.discountAmount / Number(book.price)) * 100);
+      }
+
+      return {
+        ...book,
+        price: Number(book.price),
+        isOnPromotion: true,
+        discountPercent,
+        promotionEndDate: priceInfo.promotion.endDate,
+      };
+    });
+
+    return result;
   }
 
   /**
@@ -130,6 +230,9 @@ export class BooksService {
       await this.booksSearchService.indexBook(createdBook as any);
     }
 
+    // Invalidate book list caches
+    await this.cacheService.invalidateBookLists();
+
     return createdBook as Book;
   }
 
@@ -139,7 +242,46 @@ export class BooksService {
 
     // If price filter is set, automatically filter purchase books only
     const hasPriceFilter = query.minPrice !== undefined || query.maxPrice !== undefined;
+    const effectiveAccessType = hasPriceFilter ? 'PURCHASE' : query.accessType?.toUpperCase();
 
+    // Build cache key from query params (EXCLUDING limit)
+    const shouldCache = !query.search;
+    let cacheKey: string | null = null;
+
+    if (shouldCache) {
+      const parts = [
+        `page:${page}`,
+        // limit is removed from key to allow dynamic expansion
+      ];
+      if (query.category) parts.push(`cat:${query.category}`);
+      if (query.author) parts.push(`auth:${query.author}`);
+      if (query.sortBy) parts.push(`sort:${query.sortBy}`);
+      if (query.sortOrder) parts.push(`order:${query.sortOrder}`);
+      if (effectiveAccessType) parts.push(`access:${effectiveAccessType}`);
+      if (query.minPrice) parts.push(`min:${query.minPrice}`);
+      if (query.maxPrice) parts.push(`max:${query.maxPrice}`);
+
+      cacheKey = `book:list:public:${parts.join(':')}`;
+    }
+
+    // Try cache first
+    if (cacheKey) {
+      const cached = await this.cacheService.get<{ items: Book[]; total: number }>(cacheKey);
+
+      // If cache exists and has enough items, return slice
+      if (cached && cached.items.length >= limit) {
+        const cachedItems = cached.items.slice(0, limit);
+        const itemsWithPromo = await this.applyPromotionsToBooks(cachedItems);
+        return new PaginatedResponseDto(
+          itemsWithPromo,
+          cached.total,
+          page,
+          limit
+        );
+      }
+    }
+
+    // Cache miss or not enough items -> Query DB
     const { data, total } = await this.booksRepository.findAllPublic({
       page,
       limit,
@@ -148,13 +290,25 @@ export class BooksService {
       authorSlugs: query.author,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
-      accessType: hasPriceFilter ? 'PURCHASE' : query.accessType?.toUpperCase(),
+      accessType: effectiveAccessType,
       minPrice: query.minPrice,
       maxPrice: query.maxPrice,
     });
 
     const transformedData = this.transformBooksUrls(data);
-    return new PaginatedResponseDto(transformedData, total, page, limit);
+    const dataWithPromotions = await this.applyPromotionsToBooks(transformedData);
+    const result = new PaginatedResponseDto(dataWithPromotions, total, page, limit);
+
+    // Update cache with new data (items + total)
+    if (cacheKey) {
+      await this.cacheService.set(
+        cacheKey,
+        { items: transformedData, total },
+        CacheTTL.BOOK_LIST_LATEST
+      );
+    }
+
+    return result;
   }
 
   async findAllAdmin(query: AdminQueryBookDto): Promise<PaginatedResponseDto<Book>> {
@@ -172,7 +326,9 @@ export class BooksService {
       sortOrder: query.sortOrder,
     });
     const transformedData = this.transformBooksUrls(data);
-    return new PaginatedResponseDto(transformedData, total, page, limit);
+    const dataWithPromotions = await this.applyPromotionsToBooks(transformedData);
+    const result = new PaginatedResponseDto(dataWithPromotions, total, page, limit);
+    return result;
   }
 
   async findOne(id: number): Promise<Book> {
@@ -180,10 +336,15 @@ export class BooksService {
     if (!book) {
       throw new NotFoundException(`Book with ID ${id} not found`);
     }
-    return this.transformBookUrls(book);
+    const transformed = this.transformBookUrls(book);
+    return this.applyPromotionToBook(transformed);
   }
 
   async findBySlug(slug: string): Promise<Book> {
+    const cacheKey = this.cacheService.bookDetailKey(slug);
+    const cached = await this.cacheService.get<Book>(cacheKey);
+    if (cached) return this.applyPromotionToBook(cached);
+
     const book = await this.booksRepository.findBySlug(slug);
 
     // Public: only return published and active books
@@ -191,7 +352,9 @@ export class BooksService {
       throw new NotFoundException(`Book with slug "${slug}" not found`);
     }
 
-    return this.transformBookUrls(book);
+    const transformed = this.transformBookUrls(book);
+    await this.cacheService.set(cacheKey, transformed, CacheTTL.BOOK_DETAIL);
+    return this.applyPromotionToBook(transformed);
   }
 
   async recordView(
@@ -269,6 +432,9 @@ export class BooksService {
       await this.booksSearchService.updateBook(updatedBook as any);
     }
 
+    // Invalidate caches
+    await this.cacheService.invalidateBook(existingBook.slug, id);
+
     return updatedBook as Book;
   }
 
@@ -303,23 +469,68 @@ export class BooksService {
     // Delete from Elasticsearch
     await this.booksSearchService.deleteBook(id);
 
+    // Invalidate caches
+    await this.cacheService.invalidateBook(bookWithChapters.slug, id);
+
     return deletedBook;
   }
 
   async findPopular(limit = 10): Promise<Book[]> {
+    const cacheKey = this.cacheService.bookListKey('popular');
+    let cachedBooks = await this.cacheService.get<Book[]>(cacheKey);
+
+    // If cache exists and has enough items, return slice
+    if (cachedBooks && cachedBooks.length >= limit) {
+      return this.applyPromotionsToBooks(cachedBooks.slice(0, limit));
+    }
+
+    // If cache miss or not enough items, query DB with requested limit
     const books = await this.booksRepository.findPopular(limit);
-    return this.transformBooksUrls(books);
+    const transformedBooks = this.transformBooksUrls(books);
+
+    // Update cache with new larger list
+    await this.cacheService.set(cacheKey, transformedBooks, CacheTTL.BOOK_LIST_POPULAR);
+
+    return this.applyPromotionsToBooks(transformedBooks);
   }
 
   async findTrending(period: 'week' | 'month' = 'week', limit = 10): Promise<Book[]> {
+    const cacheKey = this.cacheService.bookListKey('trending', period);
+    let cachedBooks = await this.cacheService.get<Book[]>(cacheKey);
+
+    // If cache exists and has enough items, return slice
+    if (cachedBooks && cachedBooks.length >= limit) {
+      return this.applyPromotionsToBooks(cachedBooks.slice(0, limit));
+    }
+
+    // If cache miss or not enough items, query DB
     const days = period === 'week' ? 7 : 30;
     const books = await this.booksRepository.findTrending(days, limit);
-    return this.transformBooksUrls(books);
+    const transformedBooks = this.transformBooksUrls(books);
+
+    // Update cache
+    await this.cacheService.set(cacheKey, transformedBooks, CacheTTL.BOOK_LIST_TRENDING);
+
+    return this.applyPromotionsToBooks(transformedBooks);
   }
 
   async findLatest(limit = 10): Promise<Book[]> {
+    const cacheKey = this.cacheService.bookListKey('latest');
+    let cachedBooks = await this.cacheService.get<Book[]>(cacheKey);
+
+    // If cache exists and has enough items, return slice
+    if (cachedBooks && cachedBooks.length >= limit) {
+      return this.applyPromotionsToBooks(cachedBooks.slice(0, limit));
+    }
+
+    // If cache miss or not enough items, query DB
     const books = await this.booksRepository.findLatest(limit);
-    return this.transformBooksUrls(books);
+    const transformedBooks = this.transformBooksUrls(books);
+
+    // Update cache
+    await this.cacheService.set(cacheKey, transformedBooks, CacheTTL.BOOK_LIST_LATEST);
+
+    return this.applyPromotionsToBooks(transformedBooks);
   }
 
   async updateRatingStats(bookId: number, averageRating: number, ratingCount: number): Promise<void> {

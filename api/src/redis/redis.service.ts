@@ -52,6 +52,21 @@ export class RedisService implements OnModuleDestroy {
     return this.client.keys(pattern);
   }
 
+  /**
+   * Increment a key's value atomically
+   */
+  async incr(key: string): Promise<number> {
+    return this.client.incr(key);
+  }
+
+  /**
+   * Get multiple values by keys
+   */
+  async mget(keys: string[]): Promise<(string | null)[]> {
+    if (keys.length === 0) return [];
+    return this.client.mget(keys);
+  }
+
   isConnected(): boolean {
     return this.client.status === 'ready';
   }

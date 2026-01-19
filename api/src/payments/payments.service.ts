@@ -83,11 +83,16 @@ export class PaymentsService {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
 
+    // Calculate final price based on discount
+    const originalPrice = Number(book.price);
+    const discountPercent = (book as any).discountPercent || 0;
+    const finalPrice = Math.round(originalPrice * (1 - discountPercent / 100));
+
     const session = await this.stripeService.createCheckoutSession({
       customerId,
       bookData: {
         name: book.title,
-        price: Number(book.price),
+        price: finalPrice,
         currency: 'vnd',
         imageUrl: book.coverImage || undefined,
         bookId: bookId.toString(),
@@ -137,7 +142,7 @@ export class PaymentsService {
     }
 
     const plan = await this.plansService.findByPlan(planType);
-    if (!plan || !plan.stripePriceId) {
+    if (!plan) {
       throw new BadRequestException('Subscription plan not configured');
     }
 
@@ -145,13 +150,40 @@ export class PaymentsService {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
 
-    const session = await this.stripeService.createCheckoutSession({
+    // Calculate final price based on promotion
+    const originalPrice = Number(plan.price);
+    const promotion = (plan as any).promotion;
+    let finalPrice = originalPrice;
+
+    if (promotion && (plan as any).isOnPromotion) {
+      if (promotion.type === 'PERCENTAGE') {
+        finalPrice = Math.round(originalPrice * (1 - Number(promotion.value) / 100));
+      } else {
+        finalPrice = Math.round(originalPrice - Number(promotion.value));
+      }
+      if (finalPrice < 0) finalPrice = 0;
+    }
+
+    let sessionParams: any = {
       customerId,
-      priceId: plan.stripePriceId,
       successUrl: `${frontendUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${frontendUrl}/payment/cancel`,
       metadata: { userId: userId.toString(), plan: planType },
-    });
+    };
+
+    if (finalPrice < originalPrice || !plan.stripePriceId) {
+      sessionParams.planData = {
+        name: plan.name,
+        price: finalPrice,
+        currency: plan.currency,
+        interval: plan.interval === 'YEAR' ? 'year' : 'month',
+        planId: plan.id.toString(),
+      };
+    } else {
+      sessionParams.priceId = plan.stripePriceId;
+    }
+
+    const session = await this.stripeService.createCheckoutSession(sessionParams);
 
     return { checkoutUrl: session.url };
   }

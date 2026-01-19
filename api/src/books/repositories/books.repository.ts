@@ -337,6 +337,7 @@ export class BooksRepository implements IBooksRepository {
     slug: true,
     coverImage: true,
     viewCount: true,
+    price: true,
   };
 
   async findPopular(limit: number): Promise<Book[]> {

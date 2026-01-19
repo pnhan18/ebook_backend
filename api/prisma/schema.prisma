@@ -181,6 +181,7 @@ model Book {
   favorites     Favorite[]
   ratings       Rating[]
   purchases     BookPurchase[]
+  promotions    BookPromotion[]
 
   @@index([slug])
   @@index([status])
@@ -364,8 +365,10 @@ model BookPurchase {
   book        Book     @relation(fields: [bookId], references: [id])
   paymentId   Int
   payment     Payment  @relation(fields: [paymentId], references: [id])
-  price       Decimal  @db.Decimal(10, 2)
-  purchasedAt DateTime @default(now())
+  price       Decimal    @db.Decimal(10, 2)
+  promotionId Int?
+  promotion   Promotion? @relation(fields: [promotionId], references: [id])
+  purchasedAt DateTime   @default(now())
 
   @@unique([userId, bookId])
   @@index([userId])
@@ -388,6 +391,8 @@ model Subscription {
   cancelledAt          DateTime?
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
+  promotionId          Int?
+  promotion            Promotion?         @relation(fields: [promotionId], references: [id])
 
   @@index([userId])
   @@index([stripeSubscriptionId])
@@ -418,7 +423,86 @@ model Plan {
   isActive        Boolean          @default(true)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+  promotions      PlanPromotion[]
 
   @@unique([plan, interval, intervalCount])
   @@map("plans")
+}
+
+enum PromotionType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum PromotionScope {
+  BOOK
+  SUBSCRIPTION
+}
+
+enum PromotionDuration {
+  ONCE
+  REPEATING
+  FOREVER
+}
+
+model Promotion {
+  id               Int             @id @default(autoincrement())
+  name             String
+  description      String?
+  code             String?         @unique // Null = Auto Apply
+  type             PromotionType
+  value            Decimal         @db.Decimal(10, 2)
+  startDate        DateTime
+  endDate          DateTime
+  isActive         Boolean         @default(true)
+  priority         Int             @default(0)
+  
+  scope            PromotionScope  @default(BOOK)
+  
+  // Subscription specific
+  duration         PromotionDuration @default(ONCE)
+  durationInMonths Int?
+
+  // Configuration
+  applyToAllBooks  Boolean         @default(false)
+  applyToAllPlans  Boolean         @default(false)
+  
+  // Limits
+  minOrderValue    Decimal?        @db.Decimal(10, 2)
+  maxDiscountValue Decimal?        @db.Decimal(10, 2)
+  usageLimit       Int?
+  usedCount        Int             @default(0)
+  
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  // Relations
+  books            BookPromotion[]
+  plans            PlanPromotion[]
+  
+  // Tracking
+  bookPurchases    BookPurchase[]
+  subscriptions    Subscription[]
+
+  @@map("promotions")
+}
+
+model BookPromotion {
+  bookId      Int
+  promotionId Int
+  book        Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, promotionId])
+  @@map("book_promotions")
+}
+
+model PlanPromotion {
+  planId      Int
+  promotionId Int
+  plan        Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@id([planId, promotionId])
+  @@map("plan_promotions")
 }

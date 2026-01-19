@@ -162,7 +162,15 @@ export class StripeService implements OnModuleInit {
     customerId: string;
     successUrl: string;
     cancelUrl: string;
-    priceId?: string; // Dùng cho Subscription (Gói)
+    priceId?: string; // Dùng cho Subscription (Gói) - Static Price
+    planData?: {
+      // Dùng cho Subscription (Gói) - Dynamic Price
+      name: string;
+      price: number;
+      currency: string;
+      interval: 'month' | 'year';
+      planId: string;
+    };
     bookData?: {
       // Dùng cho One-time Payment (Sách)
       name: string;
@@ -176,7 +184,7 @@ export class StripeService implements OnModuleInit {
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
     let mode: Stripe.Checkout.Session.Mode = 'payment'; // Mặc định mua đứt
 
-    // CASE 1: Mua Gói (Subscription)
+    // CASE 1: Mua Gói (Subscription) - Static Price
     if (params.priceId) {
       mode = 'subscription';
       lineItems.push({
@@ -184,7 +192,28 @@ export class StripeService implements OnModuleInit {
         quantity: 1,
       });
     }
-    // CASE 2: Mua Sách (One-time)
+    // CASE 2: Mua Gói (Subscription) - Dynamic Price
+    else if (params.planData) {
+      mode = 'subscription';
+      lineItems.push({
+        price_data: {
+          currency: params.planData.currency,
+          product_data: {
+            name: params.planData.name,
+            metadata: { planId: params.planData.planId },
+          },
+          unit_amount: this.toStripeAmount(
+            params.planData.price,
+            params.planData.currency,
+          ),
+          recurring: {
+            interval: params.planData.interval,
+          },
+        },
+        quantity: 1,
+      });
+    }
+    // CASE 3: Mua Sách (One-time)
     else if (params.bookData) {
       mode = 'payment';
       lineItems.push({
@@ -203,7 +232,7 @@ export class StripeService implements OnModuleInit {
         quantity: 1,
       });
     } else {
-      throw new Error('Missing priceId or bookData');
+      throw new Error('Missing priceId, planData or bookData');
     }
 
     return this.stripe.checkout.sessions.create({

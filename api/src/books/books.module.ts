@@ -8,8 +8,10 @@ import { BooksSearchService } from './search/books-search.service';
 import { FavoritesModule } from '../favorites/favorites.module';
 import { RatingsModule } from '../ratings/ratings.module';
 
+import { PromotionsModule } from '../promotions/promotions.module';
+
 @Module({
-  imports: [SearchModule, StorageModule, FavoritesModule, RatingsModule],
+  imports: [SearchModule, StorageModule, FavoritesModule, RatingsModule, PromotionsModule],
   controllers: [BooksController, AdminBooksController],
   providers: [
     BooksService,
@@ -21,4 +23,4 @@ import { RatingsModule } from '../ratings/ratings.module';
   ],
   exports: [BooksService, BooksSearchService, 'IBooksRepository'],
 })
-export class BooksModule {}
+export class BooksModule { }

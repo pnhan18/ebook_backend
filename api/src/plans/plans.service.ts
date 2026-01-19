@@ -9,13 +9,90 @@ import { CreatePlanDto, UpdatePlanDto, QueryPlanDto } from './dto';
 import { PaginatedResponseDto } from '../common';
 import type { IPlansRepository } from './interfaces/plans-repository.interface';
 import { PlanSummary } from './interfaces/plans-repository.interface';
+import { PromotionsService } from '../promotions/promotions.service';
 
 @Injectable()
 export class PlansService {
   constructor(
     @Inject('IPlansRepository')
     private readonly plansRepository: IPlansRepository,
+    private readonly promotionsService: PromotionsService,
   ) { }
+
+  private async applyPromotionToPlan(plan: any) {
+    if (!plan) return plan;
+    const priceInfo = await this.promotionsService.calculatePlanPrice(plan);
+
+    let isOnPromotion = false;
+    let promotion: {
+      startDate: Date;
+      endDate: Date;
+      type: string;
+      value: number;
+      duration: string;
+      durationInMonths: number | null;
+    } | null = null;
+
+    if (priceInfo.promotion && priceInfo.discountAmount > 0) {
+      isOnPromotion = true;
+      promotion = {
+        startDate: priceInfo.promotion.startDate,
+        endDate: priceInfo.promotion.endDate,
+        type: priceInfo.promotion.type,
+        value: Number(priceInfo.promotion.value),
+        duration: priceInfo.promotion.duration,
+        durationInMonths: priceInfo.promotion.durationInMonths,
+      };
+    }
+
+    return {
+      ...plan,
+      price: Number(plan.price),
+      isOnPromotion,
+      promotion,
+    };
+  }
+
+  /**
+   * Batch apply promotions to multiple plans (performance optimized - 1 DB query)
+   */
+  private async applyPromotionsToPlans(plans: any[]) {
+    if (plans.length === 0) return [];
+
+    // Get all promotion data in ONE query
+    const priceInfos = await this.promotionsService.calculatePlanPricesBatch(plans);
+
+    // Create a map for quick lookup
+    const priceInfoMap = new Map(priceInfos.map(p => [p.planId, p]));
+
+    // Apply promotion data to plans
+    return plans.map(plan => {
+      const priceInfo = priceInfoMap.get(plan.id);
+
+      if (!priceInfo || !priceInfo.promotion || priceInfo.discountAmount <= 0) {
+        return {
+          ...plan,
+          price: Number(plan.price),
+          isOnPromotion: false,
+          promotion: null,
+        };
+      }
+
+      return {
+        ...plan,
+        price: Number(plan.price),
+        isOnPromotion: true,
+        promotion: {
+          startDate: priceInfo.promotion.startDate,
+          endDate: priceInfo.promotion.endDate,
+          type: priceInfo.promotion.type,
+          value: Number(priceInfo.promotion.value),
+          duration: priceInfo.promotion.duration,
+          durationInMonths: priceInfo.promotion.durationInMonths,
+        },
+      };
+    });
+  }
 
   async create(dto: CreatePlanDto): Promise<Plan> {
     const interval = dto.interval || 'MONTH';
@@ -56,11 +133,13 @@ export class PlansService {
       limit,
       isActive: query.isActive,
     });
-    return new PaginatedResponseDto(data, total, page, limit);
+    const dataWithPromotions = await this.applyPromotionsToPlans(data);
+    return new PaginatedResponseDto(dataWithPromotions, total, page, limit);
   }
 
   async findActive(): Promise<Plan[]> {
-    return this.plansRepository.findActive();
+    const plans = await this.plansRepository.findActive();
+    return this.applyPromotionsToPlans(plans);
   }
 
   async findOne(id: number): Promise<Plan> {
@@ -68,7 +147,7 @@ export class PlansService {
     if (!plan) {
       throw new NotFoundException(`Plan with ID ${id} not found`);
     }
-    return plan;
+    return this.applyPromotionToPlan(plan);
   }
 
   async findByPlan(plan: SubscriptionPlan): Promise<Plan | null> {

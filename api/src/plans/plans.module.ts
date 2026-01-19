@@ -4,8 +4,10 @@ import { PlansController, AdminPlansController } from './plans.controller';
 import { PlansRepository } from './repositories/plans.repository';
 import { PrismaModule } from '../prisma/prisma.module';
 
+import { PromotionsModule } from '../promotions/promotions.module';
+
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, PromotionsModule],
   providers: [
     PlansService,
     {
@@ -16,4 +18,4 @@ import { PrismaModule } from '../prisma/prisma.module';
   controllers: [PlansController, AdminPlansController],
   exports: [PlansService],
 })
-export class PlansModule {}
+export class PlansModule { }

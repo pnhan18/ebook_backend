@@ -79,6 +79,7 @@ export class AudioService {
             chapterId: audio.chapterId,
             status: audio.status,
             url,
+            duration: audio.duration,
         };
     }
 }
