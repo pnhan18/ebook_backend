@@ -36,12 +36,18 @@ export class CreateBookDto {
   @IsString()
   sourceKey?: string;
 
-  // price: required for PURCHASE type and must be > 0
   @ValidateIf((o) => o.accessType === BookAccessType.PURCHASE)
   @IsNumber({}, { message: 'price is required for PURCHASE books' })
   @Min(1, { message: 'price must be greater than 0 for PURCHASE books' })
   @Type(() => Number)
   price?: number;
+
+  @ValidateIf((o) => o.accessType === BookAccessType.MEMBERSHIP || o.accessType === BookAccessType.PURCHASE)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  freeChapters?: number;
 
   @IsOptional()
   @IsBoolean()

@@ -9,7 +9,7 @@ export class FavoritesService {
   constructor(
     @Inject('IFavoritesRepository')
     private readonly favoritesRepository: IFavoritesRepository,
-  ) {}
+  ) { }
 
   async add(userId: number, bookId: number): Promise<Favorite> {
     const existing = await this.favoritesRepository.findOne(userId, bookId);
@@ -37,9 +37,9 @@ export class FavoritesService {
     return new PaginatedResponseDto(data, total, page, limit);
   }
 
-  async getStatus(userId: number, bookId: number) {
+  async getStatus(userId: number | undefined, bookId: number) {
     const [favorite, totalFavorites] = await Promise.all([
-      this.favoritesRepository.findOne(userId, bookId),
+      userId ? this.favoritesRepository.findOne(userId, bookId) : null,
       this.favoritesRepository.countByBook(bookId),
     ]);
     return {

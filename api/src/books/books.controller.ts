@@ -127,11 +127,12 @@ export class BooksController {
   }
 
   @Get(':bookId/favorite')
+  @UseGuards(JwtOptionalGuard)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Check if book is favorited and get total favorites count' })
   @ApiSuccessResponse(FavoriteStatusResponseDto)
-  @ApiUnauthorizedResponse()
   getFavoriteStatus(
-    @CurrentUser('id') userId: number,
+    @CurrentUser('id') userId: number | undefined,
     @Param('bookId', ParseIntPipe) bookId: number,
   ) {
     return this.favoritesService.getStatus(userId, bookId);

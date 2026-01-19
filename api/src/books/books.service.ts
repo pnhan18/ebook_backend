@@ -237,17 +237,19 @@ export class BooksService {
 
     const { categoryIds, authorIds, accessType, ...bookData } = updateBookDto;
 
-    // If accessType is provided, apply business rules
+    // Determine effective access type
+    const effectiveAccessType = accessType ?? existingBook.accessType;
+
+    // Apply business rules based on effective access type
+    if (effectiveAccessType === 'FREE') {
+      (bookData as any).freeChapters = 0;
+      (bookData as any).price = null;
+    } else if (effectiveAccessType === 'MEMBERSHIP') {
+      (bookData as any).price = null;
+    }
+
     if (accessType !== undefined) {
       (bookData as any).accessType = accessType;
-
-      // Apply defaults based on new accessType
-      if (accessType === 'FREE') {
-        (bookData as any).freeChapters = 0;
-        (bookData as any).price = null;
-      } else if (accessType === 'MEMBERSHIP') {
-        (bookData as any).price = null;
-      }
     }
 
     await this.booksRepository.update(id, bookData);

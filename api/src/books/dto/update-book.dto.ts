@@ -38,13 +38,15 @@ export class UpdateBookDto {
     @IsString()
     sourceKey?: string;
 
+    // freeChapters: chỉ cho phép nhập khi MEMBERSHIP hoặc PURCHASE, FREE sẽ tự set = 0
+    @ValidateIf((o) => o.accessType === BookAccessType.MEMBERSHIP || o.accessType === BookAccessType.PURCHASE)
     @IsOptional()
     @IsNumber()
     @Min(0)
     @Type(() => Number)
     freeChapters?: number;
 
-    // price: required when changing to PURCHASE type
+    // price: chỉ validate khi PURCHASE, với FREE/MEMBERSHIP service sẽ tự set null
     @ValidateIf((o) => o.accessType === BookAccessType.PURCHASE)
     @IsNumber({}, { message: 'price is required when accessType is PURCHASE' })
     @Min(1, { message: 'price must be greater than 0 for PURCHASE books' })
