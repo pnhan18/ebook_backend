@@ -1,15 +1,20 @@
 import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
 import { Favorite } from '@prisma/client';
-import { PaginationQueryDto, PaginatedResponseDto } from '../common';
+import { PaginationQueryDto, PaginatedResponseDto, StorageUrlHelper } from '../common';
+import { StorageService } from '../storage/storage.service';
 import type { IFavoritesRepository } from './interfaces/favorites-repository.interface';
 import { FavoriteWithBook } from './interfaces/favorites-repository.interface';
 
 @Injectable()
 export class FavoritesService {
+  private readonly urlHelper: StorageUrlHelper;
   constructor(
     @Inject('IFavoritesRepository')
     private readonly favoritesRepository: IFavoritesRepository,
-  ) { }
+    private readonly storageService: StorageService,
+  ) {
+    this.urlHelper = new StorageUrlHelper(storageService);
+  }
 
   async add(userId: number, bookId: number): Promise<Favorite> {
     const existing = await this.favoritesRepository.findOne(userId, bookId);
@@ -34,7 +39,13 @@ export class FavoritesService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const { data, total } = await this.favoritesRepository.findAllByUser(userId, { page, limit });
-    return new PaginatedResponseDto(data, total, page, limit);
+
+    const transformedData = data.map(item => ({
+      ...item,
+      book: this.urlHelper.transformToPublicUrls(item.book, ['coverImage']),
+    }));
+
+    return new PaginatedResponseDto(transformedData, total, page, limit);
   }
 
   async getStatus(userId: number | undefined, bookId: number) {

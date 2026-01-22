@@ -7,7 +7,7 @@ export const CacheTTL = {
     BOOK_LIST_POPULAR: 900, // 15 minutes
     BOOK_LIST_TRENDING: 900, // 15 minutes
     BOOK_LIST_LATEST: 300, // 5 minutes
-    BOOK_LIST_CATEGORY: 72800, // 10 minutes
+    BOOK_LIST_CATEGORY: 3600, // 10 minutes
     BOOK_SIMILAR: 3600, // 1 hour
 
     // Recommendations

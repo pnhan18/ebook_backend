@@ -30,4 +30,26 @@ export class BookMinimalResponseDto {
 
   @ApiPropertyOptional({ example: '2026-01-31T23:59:59.000Z', description: 'Promotion end date' })
   promotionEndDate?: Date;
+
+  @ApiPropertyOptional({ type: () => [BookMinimalAuthorDto] })
+  authors?: BookMinimalAuthorDto[];
+
+  @ApiPropertyOptional({ type: () => [BookMinimalCategoryDto] })
+  categories?: BookMinimalCategoryDto[];
+}
+
+export class BookMinimalAuthorDto {
+  @ApiProperty({ example: 1 })
+  id: number;
+
+  @ApiProperty({ example: 'J.K. Rowling' })
+  name: string;
+}
+
+export class BookMinimalCategoryDto {
+  @ApiProperty({ example: 1 })
+  id: number;
+
+  @ApiProperty({ example: 'Fiction' })
+  name: string;
 }

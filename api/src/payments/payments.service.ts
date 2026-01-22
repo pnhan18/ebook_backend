@@ -15,6 +15,8 @@ import { UsersService } from '../users/users.service';
 import { BooksService } from '../books/books.service';
 import { StripeService } from './stripe.service';
 import { PlansService } from '../plans/plans.service';
+import { StorageService } from '../storage/storage.service';
+import { StorageUrlHelper } from '../common';
 import type {
   IPaymentRepository,
   IBookPurchaseRepository,
@@ -35,7 +37,12 @@ export class PaymentsService {
     private bookPurchaseRepository: IBookPurchaseRepository,
     @Inject('ISubscriptionRepository')
     private subscriptionRepository: ISubscriptionRepository,
-  ) { }
+    private readonly storageService: StorageService,
+  ) {
+    this.urlHelper = new StorageUrlHelper(storageService);
+  }
+
+  private readonly urlHelper: StorageUrlHelper;
 
   // ==================== CUSTOMER ====================
 
@@ -94,7 +101,7 @@ export class PaymentsService {
         name: book.title,
         price: finalPrice,
         currency: 'vnd',
-        imageUrl: book.coverImage || undefined,
+        imageUrl: this.urlHelper.toPublicUrl(book.coverImage) || undefined,
         bookId: bookId.toString(),
       },
       successUrl: `${frontendUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -118,7 +125,11 @@ export class PaymentsService {
   }
 
   async getUserPurchasedBooks(userId: number) {
-    return this.bookPurchaseRepository.findByUserId(userId);
+    const purchases = await this.bookPurchaseRepository.findByUserId(userId);
+    return purchases.map((purchase) => ({
+      ...purchase,
+      book: this.urlHelper.transformToPublicUrls(purchase.book, ['coverImage']),
+    }));
   }
 
   // ==================== SUBSCRIPTION ====================

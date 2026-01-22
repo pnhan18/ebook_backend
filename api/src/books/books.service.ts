@@ -508,10 +508,15 @@ export class BooksService {
     const books = await this.booksRepository.findTrending(days, limit);
     const transformedBooks = this.transformBooksUrls(books);
 
-    // Update cache
-    await this.cacheService.set(cacheKey, transformedBooks, CacheTTL.BOOK_LIST_TRENDING);
+    const flattenedBooks = transformedBooks.map((book: any) => ({
+      ...book,
+      authors: book.authors?.map((a: any) => a.author) || [],
+    }));
 
-    return this.applyPromotionsToBooks(transformedBooks);
+    // Update cache
+    await this.cacheService.set(cacheKey, flattenedBooks, CacheTTL.BOOK_LIST_TRENDING);
+
+    return this.applyPromotionsToBooks(flattenedBooks);
   }
 
   async findLatest(limit = 10): Promise<Book[]> {
@@ -527,10 +532,15 @@ export class BooksService {
     const books = await this.booksRepository.findLatest(limit);
     const transformedBooks = this.transformBooksUrls(books);
 
-    // Update cache
-    await this.cacheService.set(cacheKey, transformedBooks, CacheTTL.BOOK_LIST_LATEST);
+    const flattenedBooks = transformedBooks.map((book: any) => ({
+      ...book,
+      categories: book.categories?.map((c: any) => c.category) || [],
+    }));
 
-    return this.applyPromotionsToBooks(transformedBooks);
+    // Update cache
+    await this.cacheService.set(cacheKey, flattenedBooks, CacheTTL.BOOK_LIST_LATEST);
+
+    return this.applyPromotionsToBooks(flattenedBooks);
   }
 
   async updateRatingStats(bookId: number, averageRating: number, ratingCount: number): Promise<void> {

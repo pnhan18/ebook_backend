@@ -1,4 +1,4 @@
-import { Payment, BookPurchase, Subscription, Prisma } from '@prisma/client';
+import { Payment, BookPurchase, Subscription, Prisma, Book } from '@prisma/client';
 
 // ==================== PAYMENT ====================
 export interface IPaymentRepository {
@@ -20,7 +20,7 @@ export interface IBookPurchaseRepository {
     userId: number,
     bookId: number,
   ): Promise<BookPurchase | null>;
-  findByUserId(userId: number): Promise<BookPurchase[]>;
+  findByUserId(userId: number): Promise<(BookPurchase & { book: Book })[]>;
 }
 
 // ==================== SUBSCRIPTION ====================

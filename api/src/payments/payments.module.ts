@@ -4,6 +4,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { PlansModule } from '../plans/plans.module';
 import { UsersModule } from '../users/users.module';
 import { BooksModule } from '../books/books.module';
+import { StorageModule } from '../storage/storage.module';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 import { StripeService } from './stripe.service';
@@ -14,7 +15,7 @@ import {
 } from './repositories';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, PlansModule, UsersModule, BooksModule],
+  imports: [ConfigModule, PrismaModule, PlansModule, UsersModule, BooksModule, StorageModule],
   controllers: [PaymentsController],
   providers: [
     PaymentsService,
@@ -34,4 +35,4 @@ import {
   ],
   exports: [PaymentsService],
 })
-export class PaymentsModule {}
+export class PaymentsModule { }

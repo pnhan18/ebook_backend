@@ -24,6 +24,7 @@
     "@aws-sdk/s3-request-presigner": "^3.940.0",
     "@elastic/elasticsearch": "^8.19.1",
     "@golevelup/nestjs-rabbitmq": "^7.1.1",
+    "@google-analytics/data": "^5.2.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",

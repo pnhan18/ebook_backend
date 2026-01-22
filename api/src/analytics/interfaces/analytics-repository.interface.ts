@@ -6,6 +6,16 @@ export interface DateRevenue {
     subscriptions: number;
 }
 
+export interface DateUsers {
+    date: string;
+    newUsers: number;
+}
+
+export interface DateViews {
+    date: string;
+    views: number;
+}
+
 export interface IAnalyticsRepository {
     /**
      * Get completed book purchases revenue for a date range
@@ -21,4 +31,24 @@ export interface IAnalyticsRepository {
      * Get revenue grouped by date
      */
     getRevenueByDate(from: Date, to: Date): Promise<DateRevenue[]>;
+
+    /**
+     * Get new users count for a date range
+     */
+    getNewUsersCount(from: Date, to: Date): Promise<number>;
+
+    /**
+     * Get new users grouped by date
+     */
+    getNewUsersByDate(from: Date, to: Date): Promise<DateUsers[]>;
+
+    /**
+     * Get views count for a date range
+     */
+    getViewsCount(from: Date, to: Date): Promise<number>;
+
+    /**
+     * Get views grouped by date
+     */
+    getViewsByDate(from: Date, to: Date): Promise<DateViews[]>;
 }

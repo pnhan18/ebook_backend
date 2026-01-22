@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,6 +5,400 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     Int              @id @default(autoincrement())
+  email                  String           @unique
+  username               String           @unique
+  password               String
+  avatar                 String?
+  signupMethod           SignupMethod
+  subscriptionPlan       SubscriptionPlan @default(FREE)
+  status                 Status           @default(ACTIVE)
+  lastLoginAt            DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  resetPasswordExpiresAt DateTime?
+  resetPasswordToken     String?
+  stripeCustomerId       String?          @unique
+  bookPurchases          BookPurchase[]
+  bookViews              BookView[]
+  favorites              Favorite[]
+  payments               Payment[]
+  ratings                Rating[]
+  subscription           Subscription?
+  roles                  UserRole[]
+
+  @@index([email])
+  @@index([username])
+  @@index([status])
+  @@index([stripeCustomerId])
+  @@map("users")
+}
+
+model Role {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId     Int
+  roleId     Int
+  assignedAt DateTime @default(now())
+  assignedBy Int?
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model Category {
+  id          Int            @id @default(autoincrement())
+  name        String
+  slug        String         @unique
+  description String?
+  parentId    Int?
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  books       BookCategory[]
+  parent      Category?      @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Category[]     @relation("CategoryHierarchy")
+
+  @@index([slug])
+  @@index([parentId])
+  @@index([isActive])
+  @@map("categories")
+}
+
+model Author {
+  id        Int          @id @default(autoincrement())
+  name      String
+  slug      String       @unique
+  avatar    String?
+  bio       String?
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  books     BookAuthor[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("authors")
+}
+
+model Book {
+  id            Int             @id @default(autoincrement())
+  title         String
+  slug          String          @unique
+  description   String?
+  coverImage    String?
+  sourceKey     String?
+  totalChapters Int             @default(0)
+  freeChapters  Int             @default(0)
+  price         Decimal?        @db.Decimal(10, 2)
+  requireLogin  Boolean         @default(false)
+  status        BookStatus      @default(DRAFT)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  viewCount     Int             @default(0)
+  accessType    BookAccessType  @default(FREE)
+  averageRating Float           @default(0)
+  ratingCount   Int             @default(0)
+  authors       BookAuthor[]
+  categories    BookCategory[]
+  promotions    BookPromotion[]
+  purchases     BookPurchase[]
+  views         BookView[]
+  chapters      Chapter[]
+  favorites     Favorite[]
+  ratings       Rating[]
+
+  @@index([slug])
+  @@index([status])
+  @@index([isActive])
+  @@index([viewCount])
+  @@index([accessType])
+  @@index([averageRating])
+  @@map("books")
+}
+
+model Chapter {
+  id          Int      @id @default(autoincrement())
+  bookId      Int
+  title       String
+  slug        String
+  contentKey  String?
+  contentType String?
+  contentSize Int?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  audio       Audio?
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, slug])
+  @@index([bookId])
+  @@index([order])
+  @@map("chapters")
+}
+
+model Audio {
+  id        Int         @id @default(autoincrement())
+  chapterId Int         @unique
+  audioKey  String?
+  status    AudioStatus @default(PENDING)
+  voice     String?     @default("Binh")
+  duration  Int?
+  error     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  chapter   Chapter     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@map("audios")
+}
+
+model BookCategory {
+  bookId     Int
+  categoryId Int
+  assignedAt DateTime @default(now())
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, categoryId])
+  @@index([bookId])
+  @@index([categoryId])
+  @@map("book_categories")
+}
+
+model BookAuthor {
+  bookId     Int
+  authorId   Int
+  assignedAt DateTime @default(now())
+  author     Author   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, authorId])
+  @@index([bookId])
+  @@index([authorId])
+  @@map("book_authors")
+}
+
+model Banner {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String?
+  imageUrl    String
+  linkUrl     String?
+  position    BannerPosition @default(HOME_SLIDER)
+  order       Int            @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([position])
+  @@index([isActive])
+  @@index([order])
+  @@map("banners")
+}
+
+model BookView {
+  id        Int      @id @default(autoincrement())
+  bookId    Int
+  userId    Int?
+  ipAddress String?
+  userAgent String?
+  viewedAt  DateTime @default(now())
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([bookId])
+  @@index([userId])
+  @@index([viewedAt])
+  @@index([bookId, ipAddress])
+  @@map("book_views")
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  bookId    Int
+  createdAt DateTime @default(now())
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@index([createdAt])
+  @@map("favorites")
+}
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  bookId    Int
+  score     Int
+  review    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@index([score])
+  @@map("ratings")
+}
+
+model Payment {
+  id                    Int            @id @default(autoincrement())
+  userId                Int
+  amount                Decimal        @db.Decimal(10, 2)
+  currency              String         @default("vnd")
+  status                PaymentStatus  @default(PENDING)
+  stripePaymentIntentId String?        @unique
+  stripeChargeId        String?
+  stripeReceiptUrl      String?
+  metadata              Json?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  bookPurchases         BookPurchase[]
+  user                  User           @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([stripePaymentIntentId])
+  @@map("payments")
+}
+
+model BookPurchase {
+  id          Int        @id @default(autoincrement())
+  userId      Int
+  bookId      Int
+  paymentId   Int
+  price       Decimal    @db.Decimal(10, 2)
+  purchasedAt DateTime   @default(now())
+  promotionId Int?
+  book        Book       @relation(fields: [bookId], references: [id])
+  payment     Payment    @relation(fields: [paymentId], references: [id])
+  promotion   Promotion? @relation(fields: [promotionId], references: [id])
+  user        User       @relation(fields: [userId], references: [id])
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@map("book_purchases")
+}
+
+model Subscription {
+  id                   Int                @id @default(autoincrement())
+  userId               Int                @unique
+  plan                 SubscriptionPlan
+  status               SubscriptionStatus @default(INCOMPLETE)
+  stripeSubscriptionId String?            @unique
+  stripeCustomerId     String
+  stripePriceId        String
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  cancelledAt          DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  promotionId          Int?
+  promotion            Promotion?         @relation(fields: [promotionId], references: [id])
+  user                 User               @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([stripeSubscriptionId])
+  @@index([stripeCustomerId])
+  @@map("subscriptions")
+}
+
+model Plan {
+  id              Int              @id @default(autoincrement())
+  plan            SubscriptionPlan
+  name            String
+  description     String?
+  price           Decimal          @db.Decimal(10, 2)
+  currency        String           @default("vnd")
+  interval        BillingInterval  @default(MONTH)
+  intervalCount   Int              @default(1)
+  stripePriceId   String?
+  stripeProductId String?
+  features        Json?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  promotions      PlanPromotion[]
+
+  @@unique([plan, interval, intervalCount])
+  @@map("plans")
+}
+
+model Promotion {
+  id               Int               @id @default(autoincrement())
+  name             String
+  description      String?
+  code             String?           @unique
+  type             PromotionType
+  value            Decimal           @db.Decimal(10, 2)
+  startDate        DateTime
+  endDate          DateTime
+  isActive         Boolean           @default(true)
+  priority         Int               @default(0)
+  scope            PromotionScope    @default(BOOK)
+  duration         PromotionDuration @default(ONCE)
+  durationInMonths Int?
+  applyToAllBooks  Boolean           @default(false)
+  applyToAllPlans  Boolean           @default(false)
+  minOrderValue    Decimal?          @db.Decimal(10, 2)
+  maxDiscountValue Decimal?          @db.Decimal(10, 2)
+  usageLimit       Int?
+  usedCount        Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  books            BookPromotion[]
+  bookPurchases    BookPurchase[]
+  plans            PlanPromotion[]
+  subscriptions    Subscription[]
+
+  @@map("promotions")
+}
+
+model BookPromotion {
+  bookId      Int
+  promotionId Int
+  book        Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, promotionId])
+  @@map("book_promotions")
+}
+
+model PlanPromotion {
+  planId      Int
+  promotionId Int
+  plan        Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@id([planId, promotionId])
+  @@map("plan_promotions")
 }
 
 enum SignupMethod {
@@ -65,155 +456,6 @@ enum SubscriptionStatus {
   TRIALING
 }
 
-model User {
-  id                     Int              @id @default(autoincrement())
-  email                  String           @unique
-  username               String           @unique
-  password               String
-  avatar                 String?
-  signupMethod           SignupMethod
-  subscriptionPlan       SubscriptionPlan @default(FREE)
-  status                 Status           @default(ACTIVE)
-  stripeCustomerId       String?          @unique
-  lastLoginAt            DateTime?
-  resetPasswordToken     String?
-  resetPasswordExpiresAt DateTime?
-  createdAt              DateTime         @default(now())
-  updatedAt              DateTime         @updatedAt
-  roles                  UserRole[]
-  bookViews              BookView[]
-  favorites              Favorite[]
-  ratings                Rating[]
-  payments               Payment[]
-  bookPurchases          BookPurchase[]
-  subscription           Subscription?
-
-  @@index([email])
-  @@index([username])
-  @@index([status])
-  @@index([stripeCustomerId])
-  @@map("users")
-}
-
-model Role {
-  id          Int        @id @default(autoincrement())
-  name        String     @unique
-  description String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  users       UserRole[]
-
-  @@map("roles")
-}
-
-model UserRole {
-  userId     Int
-  roleId     Int
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  assignedAt DateTime @default(now())
-  assignedBy Int?
-
-  @@id([userId, roleId])
-  @@index([userId])
-  @@index([roleId])
-  @@map("user_roles")
-}
-
-model Category {
-  id          Int            @id @default(autoincrement())
-  name        String
-  slug        String         @unique
-  description String?
-  parentId    Int?
-  parent      Category?      @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children    Category[]     @relation("CategoryHierarchy")
-  isActive    Boolean        @default(true)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  books       BookCategory[]
-
-  @@index([slug])
-  @@index([parentId])
-  @@index([isActive])
-  @@map("categories")
-}
-
-model Author {
-  id        Int          @id @default(autoincrement())
-  name      String
-  slug      String       @unique
-  avatar    String?
-  bio       String?
-  isActive  Boolean      @default(true)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  books     BookAuthor[]
-
-  @@index([slug])
-  @@index([isActive])
-  @@map("authors")
-}
-
-model Book {
-  id            Int            @id @default(autoincrement())
-  title         String
-  slug          String         @unique
-  description   String?
-  coverImage    String?
-  sourceKey     String?
-  totalChapters Int            @default(0)
-  freeChapters  Int            @default(0)
-  price         Decimal?       @db.Decimal(10, 2)
-  accessType    BookAccessType @default(FREE)
-  requireLogin  Boolean        @default(false)
-  status        BookStatus     @default(DRAFT)
-  isActive      Boolean        @default(true)
-  viewCount     Int            @default(0)
-  averageRating Float          @default(0)
-  ratingCount   Int            @default(0)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  categories    BookCategory[]
-  authors       BookAuthor[]
-  chapters      Chapter[]
-  views         BookView[]
-  favorites     Favorite[]
-  ratings       Rating[]
-  purchases     BookPurchase[]
-  promotions    BookPromotion[]
-
-  @@index([slug])
-  @@index([status])
-  @@index([isActive])
-  @@index([viewCount])
-  @@index([accessType])
-  @@index([averageRating])
-  @@map("books")
-}
-
-model Chapter {
-  id          Int      @id @default(autoincrement())
-  bookId      Int
-  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  title       String
-  slug        String
-  contentKey  String?
-  contentType String?
-  contentSize Int?
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  audio       Audio?
-
-  @@unique([bookId, slug])
-  @@index([bookId])
-  @@index([order])
-  @@map("chapters")
-}
-
 enum AudioStatus {
   PENDING
   PROCESSING
@@ -221,212 +463,11 @@ enum AudioStatus {
   FAILED
 }
 
-model Audio {
-  id          Int         @id @default(autoincrement())
-  chapterId   Int         @unique
-  chapter     Chapter     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  audioKey    String?
-  status      AudioStatus @default(PENDING)
-  voice       String?     @default("Binh")
-  duration    Int?
-  error       String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  @@map("audios")
-}
-
-model BookCategory {
-  bookId     Int
-  categoryId Int
-  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  assignedAt DateTime @default(now())
-
-  @@id([bookId, categoryId])
-  @@index([bookId])
-  @@index([categoryId])
-  @@map("book_categories")
-}
-
-model BookAuthor {
-  bookId     Int
-  authorId   Int
-  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  author     Author   @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  assignedAt DateTime @default(now())
-
-  @@id([bookId, authorId])
-  @@index([bookId])
-  @@index([authorId])
-  @@map("book_authors")
-}
-
-model Banner {
-  id          Int            @id @default(autoincrement())
-  title       String
-  description String?
-  imageUrl    String
-  linkUrl     String?
-  position    BannerPosition @default(HOME_SLIDER)
-  order       Int            @default(0)
-  startDate   DateTime?
-  endDate     DateTime?
-  isActive    Boolean        @default(true)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  @@index([position])
-  @@index([isActive])
-  @@index([order])
-  @@map("banners")
-}
-
-
-model BookView {
-  id        Int      @id @default(autoincrement())
-  bookId    Int
-  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  userId    Int?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  ipAddress String?
-  userAgent String?
-  viewedAt  DateTime @default(now())
-
-  @@index([bookId])
-  @@index([userId])
-  @@index([viewedAt])
-  @@index([bookId, ipAddress])
-  @@map("book_views")
-}
-
-
-model Favorite {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookId    Int
-  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-
-  @@unique([userId, bookId])
-  @@index([userId])
-  @@index([bookId])
-  @@index([createdAt])
-  @@map("favorites")
-}
-
-
-model Rating {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookId    Int
-  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  score     Int      // 1-5 stars
-  review    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, bookId])
-  @@index([userId])
-  @@index([bookId])
-  @@index([score])
-  @@map("ratings")
-}
-
-
-model Payment {
-  id                    Int           @id @default(autoincrement())
-  userId                Int
-  user                  User          @relation(fields: [userId], references: [id])
-  amount                Decimal       @db.Decimal(10, 2)
-  currency              String        @default("vnd")
-  status                PaymentStatus @default(PENDING)
-  stripePaymentIntentId String?       @unique
-  stripeChargeId        String?
-  stripeReceiptUrl      String?
-  metadata              Json?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-  bookPurchases         BookPurchase[]
-
-  @@index([userId])
-  @@index([status])
-  @@index([stripePaymentIntentId])
-  @@map("payments")
-}
-
-model BookPurchase {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  bookId      Int
-  book        Book     @relation(fields: [bookId], references: [id])
-  paymentId   Int
-  payment     Payment  @relation(fields: [paymentId], references: [id])
-  price       Decimal    @db.Decimal(10, 2)
-  promotionId Int?
-  promotion   Promotion? @relation(fields: [promotionId], references: [id])
-  purchasedAt DateTime   @default(now())
-
-  @@unique([userId, bookId])
-  @@index([userId])
-  @@index([bookId])
-  @@map("book_purchases")
-}
-
-model Subscription {
-  id                   Int                @id @default(autoincrement())
-  userId               Int                @unique
-  user                 User               @relation(fields: [userId], references: [id])
-  plan                 SubscriptionPlan
-  status               SubscriptionStatus @default(INCOMPLETE)
-  stripeSubscriptionId String?            @unique
-  stripeCustomerId     String
-  stripePriceId        String
-  currentPeriodStart   DateTime
-  currentPeriodEnd     DateTime
-  cancelAtPeriodEnd    Boolean            @default(false)
-  cancelledAt          DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  promotionId          Int?
-  promotion            Promotion?         @relation(fields: [promotionId], references: [id])
-
-  @@index([userId])
-  @@index([stripeSubscriptionId])
-  @@index([stripeCustomerId])
-  @@map("subscriptions")
-}
-
-
 enum BillingInterval {
   DAY
   WEEK
   MONTH
   YEAR
-}
-
-model Plan {
-  id              Int              @id @default(autoincrement())
-  plan            SubscriptionPlan
-  name            String
-  description     String?
-  price           Decimal          @db.Decimal(10, 2)
-  currency        String           @default("vnd")
-  interval        BillingInterval  @default(MONTH)
-  intervalCount   Int              @default(1)
-  stripePriceId   String?
-  stripeProductId String?
-  features        Json?
-  isActive        Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  promotions      PlanPromotion[]
-
-  @@unique([plan, interval, intervalCount])
-  @@map("plans")
 }
 
 enum PromotionType {
@@ -443,66 +484,4 @@ enum PromotionDuration {
   ONCE
   REPEATING
   FOREVER
-}
-
-model Promotion {
-  id               Int             @id @default(autoincrement())
-  name             String
-  description      String?
-  code             String?         @unique // Null = Auto Apply
-  type             PromotionType
-  value            Decimal         @db.Decimal(10, 2)
-  startDate        DateTime
-  endDate          DateTime
-  isActive         Boolean         @default(true)
-  priority         Int             @default(0)
-  
-  scope            PromotionScope  @default(BOOK)
-  
-  // Subscription specific
-  duration         PromotionDuration @default(ONCE)
-  durationInMonths Int?
-
-  // Configuration
-  applyToAllBooks  Boolean         @default(false)
-  applyToAllPlans  Boolean         @default(false)
-  
-  // Limits
-  minOrderValue    Decimal?        @db.Decimal(10, 2)
-  maxDiscountValue Decimal?        @db.Decimal(10, 2)
-  usageLimit       Int?
-  usedCount        Int             @default(0)
-  
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-
-  // Relations
-  books            BookPromotion[]
-  plans            PlanPromotion[]
-  
-  // Tracking
-  bookPurchases    BookPurchase[]
-  subscriptions    Subscription[]
-
-  @@map("promotions")
-}
-
-model BookPromotion {
-  bookId      Int
-  promotionId Int
-  book        Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
-
-  @@id([bookId, promotionId])
-  @@map("book_promotions")
-}
-
-model PlanPromotion {
-  planId      Int
-  promotionId Int
-  plan        Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
-  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
-
-  @@id([planId, promotionId])
-  @@map("plan_promotions")
 }

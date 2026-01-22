@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class DateRevenueDto {
     @ApiProperty({ example: '2026-01-15' })
@@ -9,6 +9,30 @@ export class DateRevenueDto {
 
     @ApiProperty({ example: 1200000 })
     subscriptions: number;
+}
+
+export class DateUsersDto {
+    @ApiProperty({ example: '2026-01-15' })
+    date: string;
+
+    @ApiProperty({ example: 150 })
+    newUsers: number;
+}
+
+export class DateActiveUsersDto {
+    @ApiProperty({ example: '2026-01-15' })
+    date: string;
+
+    @ApiProperty({ example: 587 })
+    activeUsers: number;
+}
+
+export class DateViewsDto {
+    @ApiProperty({ example: '2026-01-15' })
+    date: string;
+
+    @ApiProperty({ example: 5000 })
+    views: number;
 }
 
 export class RevenueBreakdownDto {
@@ -27,6 +51,17 @@ export class DateRangeDto {
     to: string;
 }
 
+export class MetricWithGrowthDto {
+    @ApiProperty({ example: 15000, description: 'Giá trị kỳ hiện tại' })
+    current: number;
+
+    @ApiProperty({ example: 12000, description: 'Giá trị kỳ trước' })
+    previous: number;
+
+    @ApiProperty({ example: 25.0, description: 'Tỷ lệ tăng trưởng (%)' })
+    growthRate: number;
+}
+
 export class AnalyticsResponseDto {
     @ApiProperty({ example: '7d', description: 'Khoảng thời gian thống kê' })
     period: string;
@@ -34,18 +69,36 @@ export class AnalyticsResponseDto {
     @ApiProperty({ type: DateRangeDto })
     dateRange: DateRangeDto;
 
-    @ApiProperty({ example: 15000000, description: 'Tổng doanh thu kỳ hiện tại' })
-    current: number;
-
-    @ApiProperty({ example: 12000000, description: 'Tổng doanh thu kỳ trước' })
-    previous: number;
-
-    @ApiProperty({ example: 25.0, description: 'Tỷ lệ tăng trưởng (%)' })
-    growthRate: number;
+    // Revenue
+    @ApiProperty({ type: MetricWithGrowthDto, description: 'Thống kê doanh thu' })
+    revenue: MetricWithGrowthDto;
 
     @ApiProperty({ type: RevenueBreakdownDto, description: 'Phân loại doanh thu (cho pie chart)' })
-    breakdown: RevenueBreakdownDto;
+    revenueBreakdown: RevenueBreakdownDto;
 
-    @ApiProperty({ type: [DateRevenueDto], description: 'Dữ liệu theo ngày (cho line chart)' })
-    byDate: DateRevenueDto[];
+    @ApiProperty({ type: [DateRevenueDto], description: 'Dữ liệu doanh thu theo ngày (cho line chart)' })
+    revenueByDate: DateRevenueDto[];
+
+    // Active Users (from Google Analytics)
+    @ApiPropertyOptional({ type: MetricWithGrowthDto, description: 'Thống kê người dùng hoạt động (từ Google Analytics)' })
+    activeUsers?: MetricWithGrowthDto;
+
+    @ApiPropertyOptional({ type: [DateActiveUsersDto], description: 'Dữ liệu người dùng hoạt động theo ngày' })
+    activeUsersByDate?: DateActiveUsersDto[];
+
+    // New Users
+    @ApiProperty({ type: MetricWithGrowthDto, description: 'Thống kê người dùng mới' })
+    newUsers: MetricWithGrowthDto;
+
+    @ApiProperty({ type: [DateUsersDto], description: 'Dữ liệu người dùng mới theo ngày' })
+    newUsersByDate: DateUsersDto[];
+
+    // Views
+    @ApiProperty({ type: MetricWithGrowthDto, description: 'Thống kê lượt xem' })
+    views: MetricWithGrowthDto;
+
+    @ApiProperty({ type: [DateViewsDto], description: 'Dữ liệu lượt xem theo ngày' })
+    viewsByDate: DateViewsDto[];
 }
+
+

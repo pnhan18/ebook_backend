@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { BookPurchase, Prisma } from '@prisma/client';
+import { BookPurchase, Prisma, Book } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IBookPurchaseRepository } from '../interfaces';
 
 @Injectable()
 export class BookPurchaseRepository implements IBookPurchaseRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async create(data: Prisma.BookPurchaseCreateInput): Promise<BookPurchase> {
     return this.prisma.bookPurchase.create({ data });
@@ -20,7 +20,7 @@ export class BookPurchaseRepository implements IBookPurchaseRepository {
     });
   }
 
-  async findByUserId(userId: number): Promise<BookPurchase[]> {
+  async findByUserId(userId: number): Promise<(BookPurchase & { book: Book })[]> {
     return this.prisma.bookPurchase.findMany({
       where: { userId },
       include: { book: true },
