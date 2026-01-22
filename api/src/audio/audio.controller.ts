@@ -1,7 +1,8 @@
-import { Controller, Post, Get, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Param, ParseIntPipe, UseGuards, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { AudioService } from './audio.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProduces, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('Audio')
 @Controller('audio')
@@ -11,14 +12,37 @@ export class AudioController {
     constructor(private readonly audioService: AudioService) { }
 
     @Post('generate/:chapterId')
-    @ApiOperation({ summary: 'Request audio generation for a chapter' })
+    @ApiOperation({ summary: 'Request audio generation for a chapter (saves to DB)' })
     async generateAudio(@Param('chapterId', ParseIntPipe) chapterId: number) {
         return this.audioService.generateAudio(chapterId);
     }
 
     @Get('chapter/:chapterId')
-    @ApiOperation({ summary: 'Get audio for a chapter' })
-    async getChapterAudio(@Param('chapterId', ParseIntPipe) chapterId: number) {
-        return this.audioService.getChapterAudio(chapterId);
+    @ApiOperation({
+        summary: 'Get audio for a chapter',
+        description: 'Redirects to S3 URL if cached, otherwise streams audio directly from Azure TTS'
+    })
+    @ApiProduces('audio/mpeg')
+    @ApiResponse({ status: 302, description: 'Redirect to cached audio URL' })
+    @ApiResponse({ status: 200, description: 'Audio stream (audio/mpeg)' })
+    async getChapterAudio(
+        @Param('chapterId', ParseIntPipe) chapterId: number,
+        @Res() res: Response,
+    ) {
+        const result = await this.audioService.getChapterAudio(chapterId);
+
+        if (result.type === 'redirect') {
+            // Redirect tới S3 URL
+            return res.redirect(result.url);
+        } else {
+            // Stream audio trực tiếp từ Azure TTS
+            res.setHeader('Content-Type', result.contentType);
+            res.setHeader('Transfer-Encoding', 'chunked');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('X-Audio-Source', 'tts-stream');
+
+            // Pipe stream to response
+            result.stream.pipe(res);
+        }
     }
 }

@@ -108,4 +108,33 @@ export class StorageService {
 
     await this.s3Client.send(command);
   }
+
+  async getObject(key: string): Promise<Buffer> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    const response = await this.s3Client.send(command);
+    const stream = response.Body as NodeJS.ReadableStream;
+
+    // Convert stream to buffer
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.from(chunk));
+    }
+
+    return Buffer.concat(chunks);
+  }
+
+  async uploadObject(key: string, body: Buffer | Uint8Array | string, contentType: string): Promise<void> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    });
+
+    await this.s3Client.send(command);
+  }
 }

@@ -409,7 +409,8 @@ export class BooksRepository implements IBooksRepository {
       select: {
         ...this.minimalBookSelect,
         description: true,
-        categories: { select: { category: { select: { id: true, name: true } } } },
+        authors: { select: { author: { select: { id: true, name: true, slug: true } } } },
+        categories: { select: { category: { select: { id: true, name: true, slug: true } } } },
       },
     });
 
