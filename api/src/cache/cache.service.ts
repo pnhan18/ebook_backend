@@ -216,6 +216,22 @@ export class CacheService {
         await this.del(this.bannersKey());
     }
 
+    // ==================== Analytics Cache Methods ====================
+
+    /**
+     * Analytics cache key
+     */
+    analyticsKey(period: string): string {
+        return `${CachePrefix.ANALYTICS_OVERVIEW}:${period}`;
+    }
+
+    /**
+     * Invalidate analytics cache
+     */
+    async invalidateAnalytics(): Promise<void> {
+        await this.delByPattern(`${CachePrefix.ANALYTICS_OVERVIEW}:*`);
+    }
+
     // ==================== View Count Methods ====================
 
     /**

@@ -3,6 +3,8 @@ import { AnalyticsPeriod, AnalyticsQueryDto } from './dto/analytics-query.dto';
 import { AnalyticsResponseDto } from './dto/analytics-response.dto';
 import type { IAnalyticsRepository } from './interfaces/analytics-repository.interface';
 import { GoogleAnalyticsService } from './google-analytics.service';
+import { CacheService } from '../cache/cache.service';
+import { CacheTTL } from '../cache/cache.constants';
 
 @Injectable()
 export class AnalyticsService {
@@ -10,6 +12,7 @@ export class AnalyticsService {
         @Inject('IAnalyticsRepository')
         private readonly analyticsRepository: IAnalyticsRepository,
         private readonly googleAnalyticsService: GoogleAnalyticsService,
+        private readonly cacheService: CacheService,
     ) { }
 
     private getPeriodDays(period: AnalyticsPeriod): number {
@@ -61,91 +64,99 @@ export class AnalyticsService {
 
     async getAnalytics(query: AnalyticsQueryDto): Promise<AnalyticsResponseDto> {
         const period = query.period || AnalyticsPeriod.SEVEN_DAYS;
-        const days = this.getPeriodDays(period);
-        const { current, previous } = this.getDateRanges(period);
+        const cacheKey = this.cacheService.analyticsKey(period);
 
-        // Fetch all data in parallel (including Google Analytics)
-        const [
-            // Revenue
-            currentBookRevenue,
-            previousBookRevenue,
-            currentSubRevenue,
-            previousSubRevenue,
-            currentRevenueByDate,
-            // New Users
-            currentNewUsers,
-            previousNewUsers,
-            currentNewUsersByDate,
-            // Views
-            currentViews,
-            previousViews,
-            currentViewsByDate,
-            // Active Users (from Google Analytics)
-            gaActiveUsers,
-            gaActiveUsersByDate,
-        ] = await Promise.all([
-            // Revenue
-            this.analyticsRepository.getBookPurchasesRevenue(current.from, current.to),
-            this.analyticsRepository.getBookPurchasesRevenue(previous.from, previous.to),
-            this.analyticsRepository.getSubscriptionsRevenue(current.from, current.to),
-            this.analyticsRepository.getSubscriptionsRevenue(previous.from, previous.to),
-            this.analyticsRepository.getRevenueByDate(current.from, current.to),
-            // New Users
-            this.analyticsRepository.getNewUsersCount(current.from, current.to),
-            this.analyticsRepository.getNewUsersCount(previous.from, previous.to),
-            this.analyticsRepository.getNewUsersByDate(current.from, current.to),
-            // Views
-            this.analyticsRepository.getViewsCount(current.from, current.to),
-            this.analyticsRepository.getViewsCount(previous.from, previous.to),
-            this.analyticsRepository.getViewsByDate(current.from, current.to),
-            // Active Users (from Google Analytics)
-            this.googleAnalyticsService.getActiveUsers(days),
-            this.googleAnalyticsService.getActiveUsersByDate(days),
-        ]);
+        return this.cacheService.wrap(
+            cacheKey,
+            async () => {
+                const days = this.getPeriodDays(period);
+                const { current, previous } = this.getDateRanges(period);
 
-        const currentTotalRevenue = currentBookRevenue + currentSubRevenue;
-        const previousTotalRevenue = previousBookRevenue + previousSubRevenue;
+                // Fetch all data in parallel (including Google Analytics)
+                const [
+                    // Revenue
+                    currentBookRevenue,
+                    previousBookRevenue,
+                    currentSubRevenue,
+                    previousSubRevenue,
+                    currentRevenueByDate,
+                    // New Users
+                    currentNewUsers,
+                    previousNewUsers,
+                    currentNewUsersByDate,
+                    // Views
+                    currentViews,
+                    previousViews,
+                    currentViewsByDate,
+                    // Active Users (from Google Analytics)
+                    gaActiveUsers,
+                    gaActiveUsersByDate,
+                ] = await Promise.all([
+                    // Revenue
+                    this.analyticsRepository.getBookPurchasesRevenue(current.from, current.to),
+                    this.analyticsRepository.getBookPurchasesRevenue(previous.from, previous.to),
+                    this.analyticsRepository.getSubscriptionsRevenue(current.from, current.to),
+                    this.analyticsRepository.getSubscriptionsRevenue(previous.from, previous.to),
+                    this.analyticsRepository.getRevenueByDate(current.from, current.to),
+                    // New Users
+                    this.analyticsRepository.getNewUsersCount(current.from, current.to),
+                    this.analyticsRepository.getNewUsersCount(previous.from, previous.to),
+                    this.analyticsRepository.getNewUsersByDate(current.from, current.to),
+                    // Views
+                    this.analyticsRepository.getViewsCount(current.from, current.to),
+                    this.analyticsRepository.getViewsCount(previous.from, previous.to),
+                    this.analyticsRepository.getViewsByDate(current.from, current.to),
+                    // Active Users (from Google Analytics)
+                    this.googleAnalyticsService.getActiveUsers(days),
+                    this.googleAnalyticsService.getActiveUsersByDate(days),
+                ]);
 
-        const result: AnalyticsResponseDto = {
-            period,
-            dateRange: {
-                from: current.from.toISOString().split('T')[0],
-                to: new Date(current.to.getTime() - 1).toISOString().split('T')[0],
-            },
-            // Revenue
-            revenue: {
-                current: currentTotalRevenue,
-                previous: previousTotalRevenue,
-                growthRate: this.calculateGrowthRate(currentTotalRevenue, previousTotalRevenue),
-            },
-            revenueBreakdown: {
-                bookPurchases: currentBookRevenue,
-                subscriptions: currentSubRevenue,
-            },
-            revenueByDate: currentRevenueByDate,
-            // New Users
-            newUsers: {
-                current: currentNewUsers,
-                previous: previousNewUsers,
-                growthRate: this.calculateGrowthRate(currentNewUsers, previousNewUsers),
-            },
-            newUsersByDate: currentNewUsersByDate,
-            // Views
-            views: {
-                current: currentViews,
-                previous: previousViews,
-                growthRate: this.calculateGrowthRate(currentViews, previousViews),
-            },
-            viewsByDate: currentViewsByDate,
-        };
+                const currentTotalRevenue = currentBookRevenue + currentSubRevenue;
+                const previousTotalRevenue = previousBookRevenue + previousSubRevenue;
 
-        // Add Google Analytics data if configured
-        if (this.googleAnalyticsService.isConfigured()) {
-            result.activeUsers = gaActiveUsers;
-            result.activeUsersByDate = gaActiveUsersByDate;
-        }
+                const result: AnalyticsResponseDto = {
+                    period,
+                    dateRange: {
+                        from: current.from.toISOString().split('T')[0],
+                        to: new Date(current.to.getTime() - 1).toISOString().split('T')[0],
+                    },
+                    // Revenue
+                    revenue: {
+                        current: currentTotalRevenue,
+                        previous: previousTotalRevenue,
+                        growthRate: this.calculateGrowthRate(currentTotalRevenue, previousTotalRevenue),
+                    },
+                    revenueBreakdown: {
+                        bookPurchases: currentBookRevenue,
+                        subscriptions: currentSubRevenue,
+                    },
+                    revenueByDate: currentRevenueByDate,
+                    // New Users
+                    newUsers: {
+                        current: currentNewUsers,
+                        previous: previousNewUsers,
+                        growthRate: this.calculateGrowthRate(currentNewUsers, previousNewUsers),
+                    },
+                    newUsersByDate: currentNewUsersByDate,
+                    // Views
+                    views: {
+                        current: currentViews,
+                        previous: previousViews,
+                        growthRate: this.calculateGrowthRate(currentViews, previousViews),
+                    },
+                    viewsByDate: currentViewsByDate,
+                };
 
-        return result;
+                // Add Google Analytics data if configured
+                if (this.googleAnalyticsService.isConfigured()) {
+                    result.activeUsers = gaActiveUsers;
+                    result.activeUsersByDate = gaActiveUsersByDate;
+                }
+
+                return result;
+            },
+            { ttl: CacheTTL.ANALYTICS_OVERVIEW },
+        );
     }
 }
 

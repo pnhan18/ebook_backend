@@ -1,0 +1,11 @@
+celery==5.3.6
+boto3
+gevent
+beautifulsoup4
+ebooklib
+lxml
+prisma
+redis
+python-dotenv
+requests
+mutagen

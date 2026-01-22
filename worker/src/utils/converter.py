@@ -182,13 +182,42 @@ def epub_to_chapters(epub_bytes: bytes) -> list[dict]:
                                 img["src"] = image_map[key]
                                 break
 
-                # Get title from h1/h2/h3 or filename
-                title_tag = soup.find(["h1", "h2", "h3"])
-                if title_tag:
-                    title = title_tag.get_text().strip()
-                else:
-                    title = item.get_name().replace(".xhtml", "").replace(".html", "")
-                    title = title.split("/")[-1]
+                # Get title from various sources
+                title = None
+                
+                # 1. Try h1-h6 tags
+                for heading_level in ["h1", "h2", "h3", "h4", "h5", "h6"]:
+                    title_tag = soup.find(heading_level)
+                    if title_tag:
+                        potential_title = title_tag.get_text().strip()
+                        if potential_title and len(potential_title) > 1:
+                            title = potential_title
+                            break
+                
+                # 2. Try common title class patterns
+                if not title:
+                    title_patterns = [
+                        {"class_": re.compile(r"title|chapter|heading", re.I)},
+                        {"id": re.compile(r"title|chapter|heading", re.I)},
+                    ]
+                    for pattern in title_patterns:
+                        title_elem = soup.find(["p", "div", "span"], **pattern)
+                        if title_elem:
+                            potential_title = title_elem.get_text().strip()
+                            if potential_title and len(potential_title) > 1:
+                                title = potential_title
+                                break
+                
+                # 3. Fallback to filename with better formatting
+                if not title:
+                    filename = item.get_name().replace(".xhtml", "").replace(".html", "")
+                    filename = filename.split("/")[-1]
+                    # Convert part0001 -> Chapter 1
+                    match = re.match(r"(?:part|chapter|ch|chuong|phan)[-_]?(\d+)", filename, re.I)
+                    if match:
+                        title = f"Chương {int(match.group(1))}"
+                    else:
+                        title = f"Chương {len(chapters) + 1}"
 
                 # Skip empty or navigation chapters
                 body = soup.find("body")
@@ -209,6 +238,13 @@ def epub_to_chapters(epub_bytes: bytes) -> list[dict]:
                 html_content = re.sub(r'<!--\s*EndFragment\s*-->', '', html_content)
                 html_content = html_content.replace('StartFragment', '')
                 html_content = html_content.replace('EndFragment', '')
+                
+                # Clean EPUB content markers
+                html_content = re.sub(r'@startcontent\b', '', html_content, flags=re.IGNORECASE)
+                html_content = re.sub(r'@endcontent\b', '', html_content, flags=re.IGNORECASE)
+                html_content = re.sub(r'@content\b', '', html_content, flags=re.IGNORECASE)
+                html_content = re.sub(r'@start\b', '', html_content, flags=re.IGNORECASE)
+                html_content = re.sub(r'@end\b', '', html_content, flags=re.IGNORECASE)
 
                 # HTML with cleaned CSS (layout only)
                 full_html = f"""<!DOCTYPE html>
@@ -283,6 +319,10 @@ def get_epub_cover(epub_bytes: bytes) -> bytes | None:
 def generate_slug(text: str) -> str:
     """Generate URL-friendly slug from text."""
     import unicodedata
+
+    # Guard against None or empty string
+    if not text:
+        return ""
 
     text = unicodedata.normalize("NFD", text)
     text = "".join(c for c in text if unicodedata.category(c) != "Mn")

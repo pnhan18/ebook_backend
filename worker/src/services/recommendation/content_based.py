@@ -229,37 +229,119 @@ class ContentBasedRecommender:
         limit: int = 10,
         exclude_ids: Optional[List[int]] = None,
     ) -> List[Dict]:
+        """
+        Tìm sách tương tự với category boosting.
+        Ưu tiên sách cùng thể loại/tác giả.
+        """
         await self._ensure_embeddings()
+        await self._ensure_db()
 
         if self.book_embeddings is None or book_id not in self.book_id_to_idx:
             return []
+
+        # Lấy thông tin categories và authors của book gốc
+        source_book = await self.db.book.find_unique(
+            where={"id": book_id},
+            include={
+                "categories": {"include": {"category": True}},
+                "authors": {"include": {"author": True}},
+            },
+        )
+
+        if not source_book:
+            return []
+
+        source_category_ids = {bc.categoryId for bc in (source_book.categories or [])}
+        source_author_ids = {ba.authorId for ba in (source_book.authors or [])}
 
         book_idx = self.book_id_to_idx[book_id]  # O(1) lookup
         book_embedding = self.book_embeddings[book_idx].reshape(1, -1)
         similarities = cosine_similarity(
             book_embedding, self.book_embeddings
         ).flatten()
-        similar_indices = similarities.argsort()[::-1]
 
-        results = []
+        # Lấy candidates với similarity > threshold
+        SIMILARITY_THRESHOLD = 0.3
+        candidates = []
         exclude_ids = set(exclude_ids or [])
         exclude_ids.add(book_id)
 
-        for idx in similar_indices:
+        for idx, sim_score in enumerate(similarities):
             bid = self.book_ids[idx]
-            if bid in exclude_ids:
+            if bid in exclude_ids or sim_score < SIMILARITY_THRESHOLD:
                 continue
-            results.append({"book_id": bid, "score": float(similarities[idx])})
-            if len(results) >= limit:
-                break
+            candidates.append({"book_id": bid, "base_score": float(sim_score)})
 
-        return results
+        if not candidates:
+            # Fallback: lấy top results nếu không có candidates nào đủ threshold
+            similar_indices = similarities.argsort()[::-1]
+            for idx in similar_indices[:limit * 3]:
+                bid = self.book_ids[idx]
+                if bid not in exclude_ids:
+                    candidates.append({"book_id": bid, "base_score": float(similarities[idx])})
+
+        if not candidates:
+            return []
+
+        # Lấy thông tin categories/authors của tất cả candidates
+        candidate_ids = [c["book_id"] for c in candidates]
+        candidate_books = await self.db.book.find_many(
+            where={"id": {"in": candidate_ids}},
+            include={
+                "categories": {"include": {"category": True}},
+                "authors": {"include": {"author": True}},
+            },
+        )
+
+        # Build lookup dict
+        book_info = {b.id: b for b in candidate_books}
+
+        # Category & Author boosting weights
+        CATEGORY_BOOST = 0.3  # Boost 30% nếu có category trùng
+        AUTHOR_BOOST = 0.4    # Boost 40% nếu cùng tác giả (strong signal)
+        CATEGORY_PENALTY = 0.5  # Penalty 50% nếu không có category nào trùng
+
+        results = []
+        for candidate in candidates:
+            bid = candidate["book_id"]
+            base_score = candidate["base_score"]
+            final_score = base_score
+
+            if bid in book_info:
+                book = book_info[bid]
+                candidate_category_ids = {bc.categoryId for bc in (book.categories or [])}
+                candidate_author_ids = {ba.authorId for ba in (book.authors or [])}
+
+                # Check category overlap
+                category_overlap = source_category_ids & candidate_category_ids
+                if category_overlap:
+                    # Boost theo số lượng categories trùng
+                    overlap_ratio = len(category_overlap) / max(len(source_category_ids), 1)
+                    final_score += base_score * CATEGORY_BOOST * overlap_ratio
+                elif source_category_ids and candidate_category_ids:
+                    # Penalty nếu KHÔNG có category nào trùng
+                    final_score *= CATEGORY_PENALTY
+
+                # Check author overlap (cùng tác giả -> rất liên quan)
+                if source_author_ids & candidate_author_ids:
+                    final_score += base_score * AUTHOR_BOOST
+
+            results.append({"book_id": bid, "score": final_score})
+
+        # Sort by final score
+        results.sort(key=lambda x: x["score"], reverse=True)
+
+        return results[:limit]
 
     async def get_recommendations_for_user(
         self,
         user_id: int,
         limit: int = 10,
     ) -> List[Dict]:
+        """
+        Đề xuất sách cho user với category boosting.
+        Ưu tiên sách từ categories mà user đã xem.
+        """
         await self._ensure_db()
         await self._ensure_embeddings()
 
@@ -277,6 +359,31 @@ class ContentBasedRecommender:
             return []
 
         viewed_book_ids = [v.bookId for v in recent_views]
+
+        # Lấy categories của books đã xem để tạo user preference profile
+        viewed_books = await self.db.book.find_many(
+            where={"id": {"in": viewed_book_ids}},
+            include={"categories": {"include": {"category": True}}},
+        )
+
+        # Map book_id to book object for correct ordering
+        viewed_books_map = {b.id: b for b in viewed_books}
+
+        # Count category preferences (weighted by recency)
+        from collections import Counter
+        category_preferences = Counter()
+        
+        # Iterate over viewed_book_ids to preserve recency order
+        for i, book_id in enumerate(viewed_book_ids):
+            if book_id not in viewed_books_map:
+                continue
+                
+            book = viewed_books_map[book_id]
+            weight = 1.0 / (i + 1)  # Recent books have higher weight
+            for bc in (book.categories or []):
+                category_preferences[bc.categoryId] += weight
+
+        preferred_category_ids = set(category_preferences.keys())
 
         viewed_embeddings = []
         for bid in viewed_book_ids:
@@ -297,17 +404,68 @@ class ContentBasedRecommender:
         similarities = cosine_similarity(
             user_profile, self.book_embeddings
         ).flatten()
-        similar_indices = similarities.argsort()[::-1]
 
-        results = []
+        # Lấy tất cả candidates
+        SIMILARITY_THRESHOLD = 0.3
+        candidates = []
         exclude_ids = set(viewed_book_ids)
 
-        for idx in similar_indices:
+        for idx, sim_score in enumerate(similarities):
             bid = self.book_ids[idx]
-            if bid in exclude_ids:
+            if bid in exclude_ids or sim_score < SIMILARITY_THRESHOLD:
                 continue
-            results.append({"book_id": bid, "score": float(similarities[idx])})
-            if len(results) >= limit:
-                break
+            candidates.append({"book_id": bid, "base_score": float(sim_score)})
 
-        return results
+        if not candidates:
+            # Fallback
+            similar_indices = similarities.argsort()[::-1]
+            for idx in similar_indices[:limit * 3]:
+                bid = self.book_ids[idx]
+                if bid not in exclude_ids:
+                    candidates.append({"book_id": bid, "base_score": float(similarities[idx])})
+
+        if not candidates:
+            return []
+
+        # Lấy categories của candidates để boosting
+        candidate_ids = [c["book_id"] for c in candidates]
+        candidate_books = await self.db.book.find_many(
+            where={"id": {"in": candidate_ids}},
+            include={"categories": {"include": {"category": True}}},
+        )
+        book_info = {b.id: b for b in candidate_books}
+
+        # Boosting weights
+        CATEGORY_BOOST = 0.25  # Boost nếu thuộc category user thích
+        CATEGORY_PENALTY = 0.6  # Penalty nếu không có category trùng
+
+        results = []
+        for candidate in candidates:
+            bid = candidate["book_id"]
+            base_score = candidate["base_score"]
+            final_score = base_score
+
+            if bid in book_info:
+                book = book_info[bid]
+                candidate_category_ids = {bc.categoryId for bc in (book.categories or [])}
+
+                # Check overlap với user's preferred categories
+                category_overlap = preferred_category_ids & candidate_category_ids
+                if category_overlap:
+                    # Boost theo mức độ match với user preferences
+                    boost_factor = sum(
+                        category_preferences.get(cid, 0) for cid in category_overlap
+                    )
+                    max_pref = max(category_preferences.values()) if category_preferences else 1
+                    normalized_boost = boost_factor / (max_pref * len(category_overlap))
+                    final_score += base_score * CATEGORY_BOOST * min(normalized_boost, 1.0)
+                elif preferred_category_ids and candidate_category_ids:
+                    # Penalty nếu không có category nào trùng
+                    final_score *= CATEGORY_PENALTY
+
+            results.append({"book_id": bid, "score": final_score})
+
+        # Sort by final score
+        results.sort(key=lambda x: x["score"], reverse=True)
+
+        return results[:limit]

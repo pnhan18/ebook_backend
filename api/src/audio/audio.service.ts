@@ -164,7 +164,14 @@ export class AudioService {
                     const chunk = Buffer.from(buffer.slice(0, bytesRead));
 
                     // 1. Gửi cho client
-                    passThrough.write(chunk);
+                    try {
+                        if (!passThrough.destroyed) {
+                            passThrough.write(chunk);
+                        }
+                    } catch (writeError) {
+                        // Client disconnected, ignore error and continue caching
+                        this.logger.debug(`Client disconnected, continuing to cache audio...`);
+                    }
 
                     // 2. Lưu vào buffer để cache
                     audioChunks.push(chunk);
@@ -173,7 +180,9 @@ export class AudioService {
                     setImmediate(readData);
                 } else {
                     // End of stream
-                    passThrough.end();
+                    if (!passThrough.destroyed) {
+                        passThrough.end();
+                    }
                     pushStream.close();
 
                     // 3. Trigger background upload sau khi stream xong
@@ -181,7 +190,9 @@ export class AudioService {
                 }
             } catch (error) {
                 this.logger.error(`Error reading from Azure stream: ${error}`);
-                passThrough.emit('error', error);
+                if (!passThrough.destroyed) {
+                    passThrough.emit('error', error);
+                }
                 pushStream.close();
             }
         };

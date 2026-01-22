@@ -1,80 +1,80 @@
 services:
-  api:
-    build: ./api
-    container_name: ebook-api
-    ports:
-      - "${APP_PORT:-3000}:3000"
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
-      - REDIS_URL=redis://redis:6379/0
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
-      - MAIL_HOST=${MAIL_HOST}
-      - MAIL_PORT=${MAIL_PORT}
-      - MAIL_SECURE=${MAIL_SECURE}
-      - MAIL_USER=${MAIL_USER}
-      - MAIL_PASSWORD=${MAIL_PASSWORD}
-      - MAIL_FROM=${MAIL_FROM}
-      - R2_ENDPOINT=${R2_ENDPOINT}
-      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
-      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
-      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
-      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
-      - FRONTEND_URL=${FRONTEND_URL}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-      - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-    volumes:
-      - ./api/logs:/app/logs
-    restart: unless-stopped
-    networks:
-      - ebook-network
-    depends_on:
-      - db
-      - rabbitmq
-      - redis
+  # api:
+  #   build: ./api
+  #   container_name: ebook-api
+  #   ports:
+  #     - "${APP_PORT:-3000}:3000"
+  #   environment:
+  #     - NODE_ENV=${NODE_ENV:-development}
+  #     - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+  #     - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - JWT_SECRET=${JWT_SECRET}
+  #     - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+  #     - MAIL_HOST=${MAIL_HOST}
+  #     - MAIL_PORT=${MAIL_PORT}
+  #     - MAIL_SECURE=${MAIL_SECURE}
+  #     - MAIL_USER=${MAIL_USER}
+  #     - MAIL_PASSWORD=${MAIL_PASSWORD}
+  #     - MAIL_FROM=${MAIL_FROM}
+  #     - R2_ENDPOINT=${R2_ENDPOINT}
+  #     - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+  #     - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+  #     - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+  #     - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+  #     - FRONTEND_URL=${FRONTEND_URL}
+  #     - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+  #     - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN}
+  #     - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+  #     - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+  #   volumes:
+  #     - ./api/logs:/app/logs
+  #   restart: unless-stopped
+  #   networks:
+  #     - ebook-network
+  #   depends_on:
+  #     - db
+  #     - rabbitmq
+  #     - redis
 
-  worker:
-    build: ./worker
-    container_name: ebook-worker
-    environment:
-      - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
-      - REDIS_URL=redis://redis:6379/0
-      - STORAGE_ENDPOINT_URL=${R2_ENDPOINT}
-      - STORAGE_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
-      - STORAGE_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
-      - STORAGE_BUCKET_NAME=${R2_BUCKET_NAME}
-    restart: unless-stopped
-    networks:
-      - ebook-network
-    depends_on:
-      - db
-      - rabbitmq
-      - redis
+  # worker:
+  #   build: ./worker
+  #   container_name: ebook-worker
+  #   environment:
+  #     - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+  #     - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - STORAGE_ENDPOINT_URL=${R2_ENDPOINT}
+  #     - STORAGE_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+  #     - STORAGE_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+  #     - STORAGE_BUCKET_NAME=${R2_BUCKET_NAME}
+  #   restart: unless-stopped
+  #   networks:
+  #     - ebook-network
+  #   depends_on:
+  #     - db
+  #     - rabbitmq
+  #     - redis
 
-  worker-beat:
-    build: ./worker
-    container_name: ebook-worker-beat
-    command: celery -A src.celery_app beat -l info
-    environment:
-      - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
-      - REDIS_URL=redis://redis:6379/0
-      - STORAGE_ENDPOINT_URL=${R2_ENDPOINT}
-      - STORAGE_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
-      - STORAGE_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
-      - STORAGE_BUCKET_NAME=${R2_BUCKET_NAME}
-    restart: unless-stopped
-    networks:
-      - ebook-network
-    depends_on:
-      - worker
-      - rabbitmq
-      - redis
+  # worker-beat:
+  #   build: ./worker
+  #   container_name: ebook-worker-beat
+  #   command: celery -A src.celery_app beat -l info
+  #   environment:
+  #     - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+  #     - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - STORAGE_ENDPOINT_URL=${R2_ENDPOINT}
+  #     - STORAGE_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+  #     - STORAGE_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+  #     - STORAGE_BUCKET_NAME=${R2_BUCKET_NAME}
+  #   restart: unless-stopped
+  #   networks:
+  #     - ebook-network
+  #   depends_on:
+  #     - worker
+  #     - rabbitmq
+  #     - redis
 
   db:
     image: postgres:17-alpine
@@ -91,20 +91,20 @@ services:
       - ebook-network
     restart: unless-stopped
 
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: ebook-rabbitmq
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - ebook-network
-    restart: unless-stopped
+  # rabbitmq:
+  #   image: rabbitmq:3-management-alpine
+  #   container_name: ebook-rabbitmq
+  #   ports:
+  #     - "5672:5672"
+  #     - "15672:15672"
+  #   environment:
+  #     RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+  #     RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+  #   volumes:
+  #     - rabbitmq_data:/var/lib/rabbitmq
+  #   networks:
+  #     - ebook-network
+  #   restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -143,6 +143,7 @@ volumes:
   postgres_data:
   rabbitmq_data:
   redis_data:
+  elasticsearch_data:
 
 networks:
   ebook-network:

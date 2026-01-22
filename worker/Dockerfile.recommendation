@@ -1,0 +1,90 @@
+# ========================
+# BUILD STAGE
+# ========================
+FROM python:3.11-slim-bookworm AS builder
+
+WORKDIR /app
+
+# 1. Cài đặt các gói build cần thiết
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Tạo môi trường ảo (Virtual Environment)
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# 3. Copy và cài đặt dependencies
+COPY requirements-recommendation.txt .
+
+# Cài PyTorch CPU-only từ index riêng (nhỏ hơn nhiều)
+RUN pip install --no-cache-dir --upgrade pip wheel \
+    && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements-recommendation.txt
+
+# 4. Dọn dẹp venv - chỉ xóa những thứ CHẮC CHẮN không cần
+RUN find /opt/venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
+    && find /opt/venv -type f -name "*.pyc" -delete 2>/dev/null || true \
+    && find /opt/venv -type f -name "*.pyo" -delete 2>/dev/null || true \
+    # Xóa CUDA/nvidia libraries (không cần cho CPU)
+    && rm -rf /opt/venv/lib/python3.11/site-packages/nvidia* 2>/dev/null || true \
+    && rm -rf /opt/venv/lib/python3.11/site-packages/triton* 2>/dev/null || true \
+    # Xóa TensorFlow/Flax models trong transformers (không dùng)
+    && find /opt/venv -name "modeling_flax*" -delete 2>/dev/null || true \
+    && find /opt/venv -name "modeling_tf*" -delete 2>/dev/null || true
+
+# 5. Copy source code
+COPY prisma ./prisma
+COPY src ./src
+
+# 6. Xử lý Prisma
+RUN prisma generate \
+    && prisma py fetch \
+    && find /root/.cache/prisma-python -name "*.gz" -delete 2>/dev/null || true
+
+# 7. Download Sentence-BERT model và dọn dẹp cache
+ENV HF_HOME=/app/.cache/huggingface
+ENV SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
+RUN mkdir -p /app/.cache/huggingface /app/.cache/sentence_transformers \
+    && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')" \
+    # Dọn dẹp cache không cần thiết
+    && find /app/.cache -name "*.md" -delete 2>/dev/null || true \
+    && find /app/.cache -name ".locks" -type d -exec rm -rf {} + 2>/dev/null || true
+
+# ========================
+# RUNTIME STAGE
+# ========================
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+
+# 8. Copy môi trường ảo từ builder
+COPY --from=builder /opt/venv /opt/venv
+
+# 9. Copy Prisma cache
+COPY --from=builder /root/.cache/prisma-python /root/.cache/prisma-python
+
+# 10. Copy Sentence-BERT model cache
+COPY --from=builder /app/.cache /app/.cache
+
+# 11. Copy source code
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/src ./src
+
+# 12. Copy script chạy scheduled task
+COPY run_scheduled_recommendation.py ./run_scheduled_recommendation.py
+
+# 13. Thiết lập môi trường
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV HF_HOME=/app/.cache/huggingface
+ENV SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
+ENV TRANSFORMERS_OFFLINE=1
+ENV WORKER_TYPE=recommendation
+# Tối ưu memory
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+
+CMD ["celery", "-A", "src.celery_app", "worker", "-Q", "recommendations", "-l", "info", "--pool=solo"]
+

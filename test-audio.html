@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Stream Test (Redirect Mode)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #0051a2;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            display: none;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .badge.info {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        pre {
+            background: #eee;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>🎧 Audio Stream Test (Simple)</h1>
+
+        <div class="input-group">
+            <label for="chapterId">Chapter ID</label>
+            <input type="number" id="chapterId" value="2155" placeholder="Enter chapter ID">
+        </div>
+
+        <button onclick="loadAudio()">Load Audio</button>
+
+        <div id="result" class="result">
+            <div id="statusBadge" class="badge info">READY</div>
+            <div id="infoText" style="margin-bottom: 10px; color: #666;">
+                Browser will handle redirect automatically.
+            </div>
+
+            <audio id="audioPlayer" controls autoplay>
+                Your browser does not support the audio element.
+            </audio>
+
+            <details style="margin-top: 15px;">
+                <summary>Debug Info</summary>
+                <div id="debugInfo" style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Source URL: <span id="srcUrl"></span>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+
+        function loadAudio() {
+            const chapterId = document.getElementById('chapterId').value;
+            const resultDiv = document.getElementById('result');
+            const player = document.getElementById('audioPlayer');
+            const srcUrlSpan = document.getElementById('srcUrl');
+
+            if (!chapterId) return alert('Please enter a Chapter ID');
+
+            resultDiv.style.display = 'block';
+
+            // Logic Frontend cực kỳ đơn giản:
+            // Chỉ cần set src = API URL
+            const url = `${API_BASE}/audio/chapter/${chapterId}`;
+
+            // Thêm timestamp để tránh cache browser khi test
+            const finalUrl = `${url}?t=${Date.now()}`;
+
+            player.src = finalUrl;
+            srcUrlSpan.textContent = finalUrl;
+
+            // Auto play
+            player.play().catch(e => console.log('Auto-play prevented'));
+        }
+    </script>
+</body>
+
+</html>

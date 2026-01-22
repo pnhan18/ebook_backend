@@ -20,6 +20,9 @@ export const CacheTTL = {
     // Banners
     BANNERS_ACTIVE: 1800, // 30 minutes
 
+    // Analytics
+    ANALYTICS_OVERVIEW: 7200, // 2 hours
+
     // Default
     DEFAULT: 300, // 5 minutes
 } as const;
@@ -47,6 +50,9 @@ export const CachePrefix = {
 
     // Banners
     BANNERS_ACTIVE: 'banners:active',
+
+    // Analytics
+    ANALYTICS_OVERVIEW: 'analytics:overview',
 } as const;
 
 export type CacheKey = (typeof CachePrefix)[keyof typeof CachePrefix];

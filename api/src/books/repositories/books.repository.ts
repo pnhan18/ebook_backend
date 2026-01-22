@@ -350,7 +350,7 @@ export class BooksRepository implements IBooksRepository {
       take: limit,
       select: {
         ...this.minimalBookSelect,
-        authors: { select: { author: { select: { id: true, name: true } } } }
+        authors: { select: { author: { select: { id: true, name: true, slug: true } } } }
       },
     });
 
@@ -386,7 +386,7 @@ export class BooksRepository implements IBooksRepository {
       },
       select: {
         ...this.minimalBookSelect,
-        authors: { select: { author: { select: { id: true, name: true } } } }
+        authors: { select: { author: { select: { id: true, name: true, slug: true } } } }
       },
     });
 
