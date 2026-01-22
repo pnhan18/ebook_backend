@@ -1,8 +1,7 @@
-import { Controller, Post, Get, Param, ParseIntPipe, UseGuards, Res } from '@nestjs/common';
+import { Controller, Post, Get, Param, ParseIntPipe, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { AudioService } from './audio.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiProduces, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiProduces, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('Audio')
 @Controller('audio')
@@ -33,6 +32,7 @@ export class AudioController {
 
         if (result.type === 'redirect') {
             // Redirect tới S3 URL
+            res.setHeader('Cache-Control', 'no-cache');
             return res.redirect(result.url);
         } else {
             // Stream audio trực tiếp từ Azure TTS

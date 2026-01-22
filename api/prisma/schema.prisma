@@ -156,18 +156,35 @@ model Chapter {
 }
 
 model Audio {
-  id        Int         @id @default(autoincrement())
-  chapterId Int         @unique
-  audioKey  String?
-  status    AudioStatus @default(PENDING)
-  voice     String?     @default("Binh")
-  duration  Int?
-  error     String?
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  chapter   Chapter     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  id         Int              @id @default(autoincrement())
+  chapterId  Int              @unique
+  audioKey   String?
+  status     AudioStatus      @default(PENDING)
+  voice      String?          @default("Binh")
+  duration   Int?
+  error      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  chapter    Chapter          @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  paragraphs AudioParagraph[]
 
   @@map("audios")
+}
+
+model AudioParagraph {
+  id        Int         @id @default(autoincrement())
+  audioId   Int
+  index     Int
+  audioKey  String
+  duration  Int?
+  status    AudioStatus @default(COMPLETED)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  audio     Audio       @relation(fields: [audioId], references: [id], onDelete: Cascade)
+
+  @@unique([audioId, index])
+  @@index([audioId])
+  @@map("audio_paragraphs")
 }
 
 model BookCategory {

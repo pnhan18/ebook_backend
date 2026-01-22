@@ -33,7 +33,7 @@ export class AudioService {
     ) {
         this.azureSpeechKey = this.configService.get<string>('AZURE_SPEECH_KEY') ?? '';
         this.azureSpeechRegion = this.configService.get<string>('AZURE_SPEECH_REGION') ?? '';
-        this.azureVoiceName = this.configService.get<string>('AZURE_VOICE_NAME', 'en-US-JennyNeural');
+        this.azureVoiceName = this.configService.get<string>('AZURE_VOICE_NAME', 'vi-VN-NamMinhNeural');
     }
 
     async generateAudio(chapterId: number) {
@@ -47,6 +47,33 @@ export class AudioService {
 
         await this.queueService.publishAudioGeneration(chapterId);
         return { message: 'Audio generation started' };
+    }
+
+    async clearAudioCache(chapterId: number) {
+        const chapter = await this.prisma.chapter.findUnique({
+            where: { id: chapterId },
+            include: { audio: true },
+        });
+
+        if (chapter?.audio) {
+            // Delete from S3
+            if (chapter.audio.audioKey) {
+                try {
+                    await this.storageService.deleteObject(chapter.audio.audioKey);
+                } catch (e) {
+                    this.logger.warn(`Failed to delete audio from storage: ${e}`);
+                }
+            }
+
+            // Delete from DB
+            await this.prisma.audio.delete({
+                where: { chapterId },
+            });
+
+            return { message: 'Audio cache cleared' };
+        }
+
+        return { message: 'No audio cache found' };
     }
 
     async getChapterAudio(chapterId: number): Promise<CachedAudioResponse | StreamAudioResponse> {
@@ -98,13 +125,13 @@ export class AudioService {
             paragraphs.push(text);
         }
 
-        // Gọi Azure TTS streaming và cache
-        const textToSpeak = paragraphs.join('\n\n');
-
         // Tạo audio key dự kiến để lưu cache
         const audioKey = chapter.contentKey.replace('chapters/', 'audios/').replace('.html', '.mp3');
 
-        const stream = this.streamFromAzureTTS(textToSpeak, chapterId, audioKey);
+        this.logger.log(`🎵 Starting audio stream for chapter ${chapterId} with ${paragraphs.length} paragraphs`);
+        
+        // Stream từng đoạn để giảm latency
+        const stream = this.streamFromAzureTTSChunked(paragraphs, chapterId, audioKey);
 
         return {
             type: 'stream',
@@ -114,12 +141,210 @@ export class AudioService {
     }
 
     /**
+     * Stream audio từ Azure TTS theo chunks (paragraphs) để giảm latency
+     */
+    private streamFromAzureTTSChunked(paragraphs: string[], chapterId: number, audioKey: string): NodeJS.ReadableStream {
+        if (!this.azureSpeechKey || !this.azureSpeechRegion) {
+            throw new Error('Azure Speech credentials not configured');
+        }
+
+        const passThrough = new PassThrough();
+        const audioChunks: Buffer[] = [];
+        let currentIndex = 0;
+        let isClientDisconnected = false;
+        let currentSynthesizer: sdk.SpeechSynthesizer | null = null;
+        let lastWriteTime = Date.now();
+        let writeCheckInterval: NodeJS.Timeout | null = null;
+
+        // Listen for stream events
+        passThrough.on('close', () => {
+            // Cleanup only, don't log as disconnect here
+            if (writeCheckInterval) {
+                clearInterval(writeCheckInterval);
+                writeCheckInterval = null;
+            }
+        });
+
+        passThrough.on('error', (err) => {
+            this.logger.error(`Stream error for chapter ${chapterId}: ${err.message}`);
+            isClientDisconnected = true;
+            if (currentSynthesizer) {
+                currentSynthesizer.close();
+                currentSynthesizer = null;
+            }
+            if (writeCheckInterval) {
+                clearInterval(writeCheckInterval);
+                writeCheckInterval = null;
+            }
+        });
+
+        // Check if client is still consuming data (detect pause/stop)
+        writeCheckInterval = setInterval(() => {
+            const timeSinceLastWrite = Date.now() - lastWriteTime;
+            // Nếu không write được data trong 30 giây → client đã pause/stop quá lâu
+            if (timeSinceLastWrite > 30000 && currentIndex < paragraphs.length) {
+                this.logger.log(`⏸️ Client stopped consuming data for chapter ${chapterId} (${Math.round(timeSinceLastWrite/1000)}s) - stopping synthesis`);
+                isClientDisconnected = true;
+                if (currentSynthesizer) {
+                    currentSynthesizer.close();
+                    currentSynthesizer = null;
+                }
+                if (writeCheckInterval) {
+                    clearInterval(writeCheckInterval);
+                    writeCheckInterval = null;
+                }
+                passThrough.destroy();
+            }
+        }, 5000);
+
+        const processNextParagraph = async () => {
+            if (isClientDisconnected || currentIndex >= paragraphs.length) {
+                if (!isClientDisconnected && currentIndex >= paragraphs.length) {
+                    // Hoàn thành tất cả paragraphs
+                    if (writeCheckInterval) {
+                        clearInterval(writeCheckInterval);
+                        writeCheckInterval = null;
+                    }
+                    passThrough.end();
+                    this.logger.log(`✅ Completed streaming ${paragraphs.length} paragraphs for chapter ${chapterId}`);
+                    
+                    // Save to cache
+                    this.saveAudioToStorage(chapterId, audioKey, Buffer.concat(audioChunks));
+                } else if (isClientDisconnected) {
+                    this.logger.log(`🛑 Stopped streaming at paragraph ${currentIndex}/${paragraphs.length} - not saving to cache`);
+                    if (writeCheckInterval) {
+                        clearInterval(writeCheckInterval);
+                        writeCheckInterval = null;
+                    }
+                }
+                return;
+            }
+
+            const text = paragraphs[currentIndex];
+            currentIndex++;
+
+            this.logger.debug(`Streaming paragraph ${currentIndex}/${paragraphs.length} for chapter ${chapterId}`);
+
+            const speechConfig = sdk.SpeechConfig.fromSubscription(this.azureSpeechKey, this.azureSpeechRegion);
+            speechConfig.speechSynthesisVoiceName = this.azureVoiceName;
+            speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+
+            const pushStream = sdk.AudioOutputStream.createPullStream();
+            const audioConfig = sdk.AudioConfig.fromStreamOutput(pushStream);
+            const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
+            currentSynthesizer = synthesizer;
+
+            synthesizer.speakTextAsync(
+                text,
+                (result) => {
+                    if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
+                        this.logger.debug(`Paragraph ${currentIndex} completed`);
+                    } else {
+                        this.logger.error(`Azure TTS synthesis canceled: ${result.errorDetails}`);
+                        if (!passThrough.destroyed) {
+                            passThrough.emit('error', new Error(result.errorDetails));
+                        }
+                        isClientDisconnected = true;
+                    }
+                    synthesizer.close();
+                    currentSynthesizer = null;
+                },
+                (error) => {
+                    this.logger.error(`Azure TTS error: ${error}`);
+                    if (!passThrough.destroyed) {
+                        passThrough.emit('error', error);
+                    }
+                    isClientDisconnected = true;
+                    synthesizer.close();
+                    currentSynthesizer = null;
+                }
+            );
+
+            // Read from Azure PullStream
+            const buffer = new ArrayBuffer(4096);
+            const readData = async () => {
+                try {
+                    if (passThrough.destroyed || isClientDisconnected) {
+                        isClientDisconnected = true;
+                        pushStream.close();
+                        if (currentSynthesizer) {
+                            currentSynthesizer.close();
+                            currentSynthesizer = null;
+                        }
+                        return;
+                    }
+
+                    const bytesRead = await pushStream.read(buffer);
+                    if (bytesRead > 0) {
+                        const chunk = Buffer.from(buffer.slice(0, bytesRead));
+
+                        try {
+                            if (!passThrough.destroyed) {
+                                const canWrite = passThrough.write(chunk);
+                                lastWriteTime = Date.now(); // Update last write time
+                                
+                                // Nếu buffer đầy, đợi drain event
+                                if (!canWrite) {
+                                    await new Promise(resolve => passThrough.once('drain', resolve));
+                                }
+                            } else {
+                                throw new Error('Stream destroyed');
+                            }
+                        } catch (writeError) {
+                            isClientDisconnected = true;
+                            pushStream.close();
+                            if (currentSynthesizer) {
+                                currentSynthesizer.close();
+                                currentSynthesizer = null;
+                            }
+                            return;
+                        }
+
+                        audioChunks.push(chunk);
+                        setImmediate(readData);
+                    } else {
+                        // End of current paragraph
+                        pushStream.close();
+                        currentSynthesizer = null;
+                        
+                        // Process next paragraph
+                        if (!isClientDisconnected) {
+                            setImmediate(processNextParagraph);
+                        }
+                    }
+                } catch (error) {
+                    this.logger.error(`Error reading from Azure stream: ${error}`);
+                    if (!passThrough.destroyed) {
+                        passThrough.emit('error', error);
+                    }
+                    isClientDisconnected = true;
+                    pushStream.close();
+                    if (currentSynthesizer) {
+                        currentSynthesizer.close();
+                        currentSynthesizer = null;
+                    }
+                }
+            };
+
+            readData();
+        };
+
+        // Start processing first paragraph
+        processNextParagraph();
+
+        return passThrough;
+    }
+
+    /**
      * Stream audio từ Azure TTS và lưu cache
      */
     private streamFromAzureTTS(text: string, chapterId: number, audioKey: string): NodeJS.ReadableStream {
         if (!this.azureSpeechKey || !this.azureSpeechRegion) {
             throw new Error('Azure Speech credentials not configured');
         }
+
+        const startTime = Date.now();
+        this.logger.log(`⏱️  Azure TTS synthesis started for chapter ${chapterId}`);
 
         const passThrough = new PassThrough();
         const audioChunks: Buffer[] = []; // Buffer để gom data upload S3
@@ -144,13 +369,17 @@ export class AudioService {
                     this.logger.log('Azure TTS synthesis completed.');
                 } else {
                     this.logger.error(`Azure TTS synthesis canceled: ${result.errorDetails}`);
-                    passThrough.emit('error', new Error(result.errorDetails));
+                    if (!passThrough.destroyed) {
+                        passThrough.emit('error', new Error(result.errorDetails));
+                    }
                 }
                 synthesizer.close();
             },
             (error) => {
                 this.logger.error(`Azure TTS error: ${error}`);
-                passThrough.emit('error', error);
+                if (!passThrough.destroyed) {
+                    passThrough.emit('error', error);
+                }
                 synthesizer.close();
             }
         );
@@ -159,6 +388,13 @@ export class AudioService {
         const buffer = new ArrayBuffer(4096);
         const readData = async () => {
             try {
+                if (passThrough.destroyed) {
+                    this.logger.debug(`Client disconnected, aborting audio generation...`);
+                    pushStream.close();
+                    synthesizer.close();
+                    return;
+                }
+
                 const bytesRead = await pushStream.read(buffer);
                 if (bytesRead > 0) {
                     const chunk = Buffer.from(buffer.slice(0, bytesRead));
@@ -167,10 +403,15 @@ export class AudioService {
                     try {
                         if (!passThrough.destroyed) {
                             passThrough.write(chunk);
+                        } else {
+                            throw new Error('Stream destroyed');
                         }
                     } catch (writeError) {
-                        // Client disconnected, ignore error and continue caching
-                        this.logger.debug(`Client disconnected, continuing to cache audio...`);
+                        // Client disconnected, abort
+                        this.logger.debug(`Client disconnected during write, aborting audio generation...`);
+                        pushStream.close();
+                        synthesizer.close();
+                        return;
                     }
 
                     // 2. Lưu vào buffer để cache
@@ -182,11 +423,14 @@ export class AudioService {
                     // End of stream
                     if (!passThrough.destroyed) {
                         passThrough.end();
+
+                        // 3. Trigger background upload sau khi stream xong
+                        // Only save if client stayed connected until the end (complete audio)
+                        this.saveAudioToStorage(chapterId, audioKey, Buffer.concat(audioChunks));
+                    } else {
+                        this.logger.debug(`Client disconnected before stream completion, skipping cache save`);
                     }
                     pushStream.close();
-
-                    // 3. Trigger background upload sau khi stream xong
-                    this.saveAudioToStorage(chapterId, audioKey, Buffer.concat(audioChunks));
                 }
             } catch (error) {
                 this.logger.error(`Error reading from Azure stream: ${error}`);
