@@ -10,12 +10,10 @@ from src.config import get_db, get_redis
 class ContentBasedRecommender:
     MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
 
-    # Review filtering config
-    MIN_REVIEW_LENGTH = 20  # Tối thiểu 20 ký tự
-    MAX_REVIEWS_PER_BOOK = 10  # Lấy tối đa 10 reviews/book
-    MIN_RATING_FOR_REVIEW = 3  # Chỉ lấy review từ rating >= 3 sao
+    MIN_REVIEW_LENGTH = 20
+    MAX_REVIEWS_PER_BOOK = 10
+    MIN_RATING_FOR_REVIEW = 3
 
-    # Spam patterns (Vietnamese + English)
     SPAM_PATTERNS = [
         r"^(ok|tốt|hay|good|nice|great|bad|dở|tệ|\.+|!+|\?+)$",
         r"(http|www\.|\.com|\.vn)",
@@ -31,7 +29,7 @@ class ContentBasedRecommender:
         self.model = None
         self.book_embeddings = None
         self.book_ids = []
-        self.book_id_to_idx = {}  # O(1) lookup thay vì O(n)
+        self.book_id_to_idx = {}
         self._spam_regex = [
             re.compile(p, re.IGNORECASE) for p in self.SPAM_PATTERNS
         ]
@@ -53,16 +51,13 @@ class ContentBasedRecommender:
 
         review = review.strip()
 
-        # Quá ngắn
         if len(review) < self.MIN_REVIEW_LENGTH:
             return True
 
-        # Check spam patterns
         for pattern in self._spam_regex:
             if pattern.search(review):
                 return True
 
-        # Tỷ lệ chữ cái quá thấp (spam toàn emoji/số)
         alpha_chars = sum(1 for c in review if c.isalpha())
         if len(review) > 0 and alpha_chars / len(review) < 0.5:
             return True
@@ -74,43 +69,34 @@ class ContentBasedRecommender:
         if not review:
             return ""
 
-        # Remove extra whitespace
         review = " ".join(review.split())
-
-        # Remove emoji (giữ lại text)
         review = re.sub(r"[\U00010000-\U0010ffff]", "", review)
 
-        # Limit length
         if len(review) > 500:
             review = review[:500] + "..."
 
         return review.strip()
 
     def _create_book_text(self, book, reviews: List[str] = None) -> str:
-        """Tạo text representation cho book, bao gồm cả reviews đã lọc"""
+        """Tạo text representation cho book"""
         parts = []
 
-        # Title (weight x2)
         if book.title:
             parts.append(book.title)
             parts.append(book.title)
 
-        # Description
         if book.description:
             desc = book.description[:1000]
             parts.append(desc)
 
-        # Categories
         if book.categories:
             categories = " ".join([bc.category.name for bc in book.categories])
             parts.append(f"Thể loại: {categories}")
 
-        # Authors
         if book.authors:
             authors = " ".join([ba.author.name for ba in book.authors])
             parts.append(f"Tác giả: {authors}")
 
-        # Reviews (đã được lọc và clean)
         if reviews:
             reviews_text = " ".join(reviews)
             parts.append(f"Đánh giá: {reviews_text}")
@@ -121,7 +107,6 @@ class ContentBasedRecommender:
         """Lấy và lọc reviews chất lượng cho một book"""
         await self._ensure_db()
 
-        # Lấy reviews có rating >= 3, sắp xếp theo rating cao nhất
         ratings = await self.db.rating.find_many(
             where={
                 "bookId": book_id,
@@ -129,7 +114,7 @@ class ContentBasedRecommender:
                 "review": {"not": None},
             },
             order={"score": "desc"},
-            take=self.MAX_REVIEWS_PER_BOOK * 2,  # Lấy dư để lọc
+            take=self.MAX_REVIEWS_PER_BOOK * 2,
         )
 
         filtered_reviews = []
@@ -163,13 +148,11 @@ class ContentBasedRecommender:
 
         print(f"Processing {len(books)} books with reviews...")
         for book in books:
-            # Lấy reviews đã lọc cho book này
             reviews = await self._get_filtered_reviews(book.id)
             text = self._create_book_text(book, reviews)
             book_texts.append(text)
             self.book_ids.append(book.id)
 
-        # Build O(1) lookup dict
         self.book_id_to_idx = {bid: idx for idx, bid in enumerate(self.book_ids)}
 
         print(f"Encoding {len(book_texts)} books with Sentence-BERT...")
@@ -190,7 +173,7 @@ class ContentBasedRecommender:
         }
 
     async def _cache_embeddings(self):
-        """Cache embeddings to Redis using pickle (faster than JSON for numpy)"""
+        """Cache embeddings to Redis using pickle"""
         if self.redis and self.book_embeddings is not None:
             cache_data = {
                 "book_ids": self.book_ids,
@@ -210,7 +193,6 @@ class ContentBasedRecommender:
                 cache_data = pickle.loads(data)
                 self.book_ids = cache_data["book_ids"]
                 self.book_embeddings = cache_data["embeddings"]
-                # Rebuild O(1) lookup dict
                 self.book_id_to_idx = {
                     bid: idx for idx, bid in enumerate(self.book_ids)
                 }
@@ -229,17 +211,13 @@ class ContentBasedRecommender:
         limit: int = 10,
         exclude_ids: Optional[List[int]] = None,
     ) -> List[Dict]:
-        """
-        Tìm sách tương tự với category boosting.
-        Ưu tiên sách cùng thể loại/tác giả.
-        """
+        """Tìm sách tương tự với category boosting"""
         await self._ensure_embeddings()
         await self._ensure_db()
 
         if self.book_embeddings is None or book_id not in self.book_id_to_idx:
             return []
 
-        # Lấy thông tin categories và authors của book gốc
         source_book = await self.db.book.find_unique(
             where={"id": book_id},
             include={
@@ -254,13 +232,12 @@ class ContentBasedRecommender:
         source_category_ids = {bc.categoryId for bc in (source_book.categories or [])}
         source_author_ids = {ba.authorId for ba in (source_book.authors or [])}
 
-        book_idx = self.book_id_to_idx[book_id]  # O(1) lookup
+        book_idx = self.book_id_to_idx[book_id]
         book_embedding = self.book_embeddings[book_idx].reshape(1, -1)
         similarities = cosine_similarity(
             book_embedding, self.book_embeddings
         ).flatten()
 
-        # Lấy candidates với similarity > threshold
         SIMILARITY_THRESHOLD = 0.3
         candidates = []
         exclude_ids = set(exclude_ids or [])
@@ -273,7 +250,6 @@ class ContentBasedRecommender:
             candidates.append({"book_id": bid, "base_score": float(sim_score)})
 
         if not candidates:
-            # Fallback: lấy top results nếu không có candidates nào đủ threshold
             similar_indices = similarities.argsort()[::-1]
             for idx in similar_indices[:limit * 3]:
                 bid = self.book_ids[idx]
@@ -283,7 +259,6 @@ class ContentBasedRecommender:
         if not candidates:
             return []
 
-        # Lấy thông tin categories/authors của tất cả candidates
         candidate_ids = [c["book_id"] for c in candidates]
         candidate_books = await self.db.book.find_many(
             where={"id": {"in": candidate_ids}},
@@ -293,13 +268,11 @@ class ContentBasedRecommender:
             },
         )
 
-        # Build lookup dict
         book_info = {b.id: b for b in candidate_books}
 
-        # Category & Author boosting weights
-        CATEGORY_BOOST = 0.3  # Boost 30% nếu có category trùng
-        AUTHOR_BOOST = 0.4    # Boost 40% nếu cùng tác giả (strong signal)
-        CATEGORY_PENALTY = 0.5  # Penalty 50% nếu không có category nào trùng
+        CATEGORY_BOOST = 0.3
+        AUTHOR_BOOST = 0.4
+        CATEGORY_PENALTY = 0.5
 
         results = []
         for candidate in candidates:
@@ -312,23 +285,18 @@ class ContentBasedRecommender:
                 candidate_category_ids = {bc.categoryId for bc in (book.categories or [])}
                 candidate_author_ids = {ba.authorId for ba in (book.authors or [])}
 
-                # Check category overlap
                 category_overlap = source_category_ids & candidate_category_ids
                 if category_overlap:
-                    # Boost theo số lượng categories trùng
                     overlap_ratio = len(category_overlap) / max(len(source_category_ids), 1)
                     final_score += base_score * CATEGORY_BOOST * overlap_ratio
                 elif source_category_ids and candidate_category_ids:
-                    # Penalty nếu KHÔNG có category nào trùng
                     final_score *= CATEGORY_PENALTY
 
-                # Check author overlap (cùng tác giả -> rất liên quan)
                 if source_author_ids & candidate_author_ids:
                     final_score += base_score * AUTHOR_BOOST
 
             results.append({"book_id": bid, "score": final_score})
 
-        # Sort by final score
         results.sort(key=lambda x: x["score"], reverse=True)
 
         return results[:limit]
@@ -338,10 +306,7 @@ class ContentBasedRecommender:
         user_id: int,
         limit: int = 10,
     ) -> List[Dict]:
-        """
-        Đề xuất sách cho user với category boosting.
-        Ưu tiên sách từ categories mà user đã xem.
-        """
+        """Đề xuất sách cho user với category boosting"""
         await self._ensure_db()
         await self._ensure_embeddings()
 
@@ -360,26 +325,22 @@ class ContentBasedRecommender:
 
         viewed_book_ids = [v.bookId for v in recent_views]
 
-        # Lấy categories của books đã xem để tạo user preference profile
         viewed_books = await self.db.book.find_many(
             where={"id": {"in": viewed_book_ids}},
             include={"categories": {"include": {"category": True}}},
         )
 
-        # Map book_id to book object for correct ordering
         viewed_books_map = {b.id: b for b in viewed_books}
 
-        # Count category preferences (weighted by recency)
         from collections import Counter
         category_preferences = Counter()
         
-        # Iterate over viewed_book_ids to preserve recency order
         for i, book_id in enumerate(viewed_book_ids):
             if book_id not in viewed_books_map:
                 continue
                 
             book = viewed_books_map[book_id]
-            weight = 1.0 / (i + 1)  # Recent books have higher weight
+            weight = 1.0 / (i + 1)
             for bc in (book.categories or []):
                 category_preferences[bc.categoryId] += weight
 
@@ -387,7 +348,7 @@ class ContentBasedRecommender:
 
         viewed_embeddings = []
         for bid in viewed_book_ids:
-            if bid in self.book_id_to_idx:  # O(1) lookup
+            if bid in self.book_id_to_idx:
                 idx = self.book_id_to_idx[bid]
                 viewed_embeddings.append(self.book_embeddings[idx])
 
@@ -405,7 +366,6 @@ class ContentBasedRecommender:
             user_profile, self.book_embeddings
         ).flatten()
 
-        # Lấy tất cả candidates
         SIMILARITY_THRESHOLD = 0.3
         candidates = []
         exclude_ids = set(viewed_book_ids)
@@ -417,7 +377,6 @@ class ContentBasedRecommender:
             candidates.append({"book_id": bid, "base_score": float(sim_score)})
 
         if not candidates:
-            # Fallback
             similar_indices = similarities.argsort()[::-1]
             for idx in similar_indices[:limit * 3]:
                 bid = self.book_ids[idx]
@@ -427,7 +386,6 @@ class ContentBasedRecommender:
         if not candidates:
             return []
 
-        # Lấy categories của candidates để boosting
         candidate_ids = [c["book_id"] for c in candidates]
         candidate_books = await self.db.book.find_many(
             where={"id": {"in": candidate_ids}},
@@ -435,9 +393,8 @@ class ContentBasedRecommender:
         )
         book_info = {b.id: b for b in candidate_books}
 
-        # Boosting weights
-        CATEGORY_BOOST = 0.25  # Boost nếu thuộc category user thích
-        CATEGORY_PENALTY = 0.6  # Penalty nếu không có category trùng
+        CATEGORY_BOOST = 0.25
+        CATEGORY_PENALTY = 0.6
 
         results = []
         for candidate in candidates:
@@ -449,10 +406,8 @@ class ContentBasedRecommender:
                 book = book_info[bid]
                 candidate_category_ids = {bc.categoryId for bc in (book.categories or [])}
 
-                # Check overlap với user's preferred categories
                 category_overlap = preferred_category_ids & candidate_category_ids
                 if category_overlap:
-                    # Boost theo mức độ match với user preferences
                     boost_factor = sum(
                         category_preferences.get(cid, 0) for cid in category_overlap
                     )
@@ -460,12 +415,10 @@ class ContentBasedRecommender:
                     normalized_boost = boost_factor / (max_pref * len(category_overlap))
                     final_score += base_score * CATEGORY_BOOST * min(normalized_boost, 1.0)
                 elif preferred_category_ids and candidate_category_ids:
-                    # Penalty nếu không có category nào trùng
                     final_score *= CATEGORY_PENALTY
 
             results.append({"book_id": bid, "score": final_score})
 
-        # Sort by final score
         results.sort(key=lambda x: x["score"], reverse=True)
 
         return results[:limit]
