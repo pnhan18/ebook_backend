@@ -1,0 +1,149 @@
+services:
+  api:
+    build: ./api
+    container_name: ebook-api
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_SECURE=${MAIL_SECURE}
+      - MAIL_USER=${MAIL_USER}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_FROM=${MAIL_FROM}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+    volumes:
+      - ./api/logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - ebook-network
+    depends_on:
+      - db
+      - rabbitmq
+      - redis
+
+  worker:
+    build: ./worker
+    container_name: ebook-worker
+    environment:
+      - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379/0
+      - STORAGE_ENDPOINT_URL=${R2_ENDPOINT}
+      - STORAGE_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - STORAGE_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - STORAGE_BUCKET_NAME=${R2_BUCKET_NAME}
+    restart: unless-stopped
+    networks:
+      - ebook-network
+    depends_on:
+      - db
+      - rabbitmq
+      - redis
+
+  worker-beat:
+    build: ./worker
+    container_name: ebook-worker-beat
+    command: celery -A src.celery_app beat -l info
+    environment:
+      - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379/0
+      - STORAGE_ENDPOINT_URL=${R2_ENDPOINT}
+      - STORAGE_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - STORAGE_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - STORAGE_BUCKET_NAME=${R2_BUCKET_NAME}
+    restart: unless-stopped
+    networks:
+      - ebook-network
+    depends_on:
+      - worker
+      - rabbitmq
+      - redis
+
+  db:
+    image: postgres:17-alpine
+    container_name: ebook-postgres
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - ebook-network
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ebook-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - ebook-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: ebook-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ebook-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: ebook-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - ebook-network
+    restart: unless-stopped
+    healthcheck:
+      test: curl -s http://localhost:9200/_cluster/health | grep -vq '"status":"red"'
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  redis_data:
+
+networks:
+  ebook-network:
+    driver: bridge

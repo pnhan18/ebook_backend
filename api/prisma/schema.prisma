@@ -1,0 +1,400 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SignupMethod {
+  GOOGLE
+  EMAIL
+  FACEBOOK
+}
+
+enum SubscriptionPlan {
+  FREE
+  PREMIUM
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+  BANNED
+}
+
+enum BookStatus {
+  DRAFT
+  PROCESSING
+  PUBLISHED
+  FAILED
+}
+
+enum BookAccessType {
+  FREE
+  PURCHASE
+  MEMBERSHIP
+}
+
+enum BannerPosition {
+  HOME_SLIDER
+  HOME_POPUP
+  SIDEBAR_LEFT
+  SIDEBAR_RIGHT
+  HEADER
+  FOOTER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  INCOMPLETE
+  TRIALING
+}
+
+model User {
+  id                     Int              @id @default(autoincrement())
+  email                  String           @unique
+  username               String           @unique
+  password               String
+  avatar                 String?
+  signupMethod           SignupMethod
+  subscriptionPlan       SubscriptionPlan @default(FREE)
+  status                 Status           @default(ACTIVE)
+  stripeCustomerId       String?          @unique
+  lastLoginAt            DateTime?
+  resetPasswordToken     String?
+  resetPasswordExpiresAt DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  roles                  UserRole[]
+  bookViews              BookView[]
+  favorites              Favorite[]
+  ratings                Rating[]
+  payments               Payment[]
+  bookPurchases          BookPurchase[]
+  subscription           Subscription?
+
+  @@index([email])
+  @@index([username])
+  @@index([status])
+  @@index([stripeCustomerId])
+  @@map("users")
+}
+
+model Role {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId     Int
+  roleId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+  assignedBy Int?
+
+  @@id([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model Category {
+  id          Int            @id @default(autoincrement())
+  name        String
+  slug        String         @unique
+  description String?
+  parentId    Int?
+  parent      Category?      @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Category[]     @relation("CategoryHierarchy")
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  books       BookCategory[]
+
+  @@index([slug])
+  @@index([parentId])
+  @@index([isActive])
+  @@map("categories")
+}
+
+model Author {
+  id        Int          @id @default(autoincrement())
+  name      String
+  slug      String       @unique
+  avatar    String?
+  bio       String?
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  books     BookAuthor[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("authors")
+}
+
+model Book {
+  id            Int            @id @default(autoincrement())
+  title         String
+  slug          String         @unique
+  description   String?
+  coverImage    String?
+  sourceKey     String?
+  totalChapters Int            @default(0)
+  freeChapters  Int            @default(0)
+  price         Decimal?       @db.Decimal(10, 2)
+  accessType    BookAccessType @default(FREE)
+  requireLogin  Boolean        @default(false)
+  status        BookStatus     @default(DRAFT)
+  isActive      Boolean        @default(true)
+  viewCount     Int            @default(0)
+  averageRating Float          @default(0)
+  ratingCount   Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  categories    BookCategory[]
+  authors       BookAuthor[]
+  chapters      Chapter[]
+  views         BookView[]
+  favorites     Favorite[]
+  ratings       Rating[]
+  purchases     BookPurchase[]
+
+  @@index([slug])
+  @@index([status])
+  @@index([isActive])
+  @@index([viewCount])
+  @@index([accessType])
+  @@index([averageRating])
+  @@map("books")
+}
+
+model Chapter {
+  id          Int      @id @default(autoincrement())
+  bookId      Int
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  title       String
+  slug        String
+  contentKey  String?
+  contentType String?
+  contentSize Int?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([bookId, slug])
+  @@index([bookId])
+  @@index([order])
+  @@map("chapters")
+}
+
+model BookCategory {
+  bookId     Int
+  categoryId Int
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@id([bookId, categoryId])
+  @@index([bookId])
+  @@index([categoryId])
+  @@map("book_categories")
+}
+
+model BookAuthor {
+  bookId     Int
+  authorId   Int
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  author     Author   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@id([bookId, authorId])
+  @@index([bookId])
+  @@index([authorId])
+  @@map("book_authors")
+}
+
+model Banner {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String?
+  imageUrl    String
+  linkUrl     String?
+  position    BannerPosition @default(HOME_SLIDER)
+  order       Int            @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([position])
+  @@index([isActive])
+  @@index([order])
+  @@map("banners")
+}
+
+
+model BookView {
+  id        Int      @id @default(autoincrement())
+  bookId    Int
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress String?
+  userAgent String?
+  viewedAt  DateTime @default(now())
+
+  @@index([bookId])
+  @@index([userId])
+  @@index([viewedAt])
+  @@index([bookId, ipAddress])
+  @@map("book_views")
+}
+
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId    Int
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@index([createdAt])
+  @@map("favorites")
+}
+
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId    Int
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  score     Int      // 1-5 stars
+  review    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@index([score])
+  @@map("ratings")
+}
+
+
+model Payment {
+  id                    Int           @id @default(autoincrement())
+  userId                Int
+  user                  User          @relation(fields: [userId], references: [id])
+  amount                Decimal       @db.Decimal(10, 2)
+  currency              String        @default("vnd")
+  status                PaymentStatus @default(PENDING)
+  stripePaymentIntentId String?       @unique
+  stripeChargeId        String?
+  stripeReceiptUrl      String?
+  metadata              Json?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  bookPurchases         BookPurchase[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([stripePaymentIntentId])
+  @@map("payments")
+}
+
+model BookPurchase {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  bookId      Int
+  book        Book     @relation(fields: [bookId], references: [id])
+  paymentId   Int
+  payment     Payment  @relation(fields: [paymentId], references: [id])
+  price       Decimal  @db.Decimal(10, 2)
+  purchasedAt DateTime @default(now())
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@map("book_purchases")
+}
+
+model Subscription {
+  id                   Int                @id @default(autoincrement())
+  userId               Int                @unique
+  user                 User               @relation(fields: [userId], references: [id])
+  plan                 SubscriptionPlan
+  status               SubscriptionStatus @default(INCOMPLETE)
+  stripeSubscriptionId String?            @unique
+  stripeCustomerId     String
+  stripePriceId        String
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  cancelledAt          DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([stripeSubscriptionId])
+  @@index([stripeCustomerId])
+  @@map("subscriptions")
+}
+
+
+enum BillingInterval {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+model Plan {
+  id              Int              @id @default(autoincrement())
+  plan            SubscriptionPlan
+  name            String
+  description     String?
+  price           Decimal          @db.Decimal(10, 2)
+  currency        String           @default("vnd")
+  interval        BillingInterval  @default(MONTH)
+  intervalCount   Int              @default(1)
+  stripePriceId   String?
+  stripeProductId String?
+  features        Json?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([plan, interval, intervalCount])
+  @@map("plans")
+}
